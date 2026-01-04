@@ -1,0 +1,5 @@
+{
+  "name": "NewBie 动漫生成器",
+  "description": "基于 NewBie 模型和 XML 提示词的公益 AI 绘图站。",
+  "requestFramePermissions": []
+}

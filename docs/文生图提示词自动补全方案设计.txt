@@ -1,0 +1,271 @@
+﻿移动端文生图提示词自动补全系统深度研究与架构设计报告
+1. 执行摘要与项目背景分析
+在当前生成式人工智能（AIGC）的浪潮中，"文生图"（Text-to-Image）技术已经从早期的技术演示迅速演变为成熟的生产力工具。然而，随着模型能力的提升，提示词（Prompt）工程的复杂性也呈指数级增长。对于移动端用户而言，这种复杂性构成了巨大的交互屏障。传统的桌面端提示词输入依赖于物理键盘的高效录入和多窗口的复制粘贴，而移动端受限于虚拟键盘的遮挡、屏幕尺寸的限制以及输入法的切换成本，使得构建高质量、长序列的提示词变得极具挑战性。
+本报告旨在响应一个特定的移动端文生图项目需求，该项目虽然暂时禁用了基于XML架构的"Newbie"生成引擎，但其架构设计必须兼顾当前主流模型的通用标签补全与未来Newbie引擎重启后的结构化输入需求。报告将深入剖析行业标杆（如NovelAI、A1111 WebUI Tag Autocomplete、ComfyUI）的技术实现路径，解构其数据来源、算法逻辑与交互模式，并结合移动端性能约束（Web Worker、虚拟化列表）与本地化需求（中文拼音模糊搜索），提出一套详尽的、企业级的自动补全架构方案。
+我们不仅要解决"如何补全"的问题，更要深究"如何让移动设备在处理十万级标签数据时保持60FPS流畅度"、"如何实现中英文语义的无缝映射"以及"如何通过架构设计兼容扁平化标签与层级化XML Prompt"等核心命题。
+________________
+2. 行业标杆技术实现深度解构
+要构建一个超越现有体验的系统，必须首先对现有的行业标准进行显微镜式的解构。目前市场上的提示词补全方案主要分为两大流派：以A1111 WebUI为代表的"插件式/客户端数据库"流派，和以NovelAI为代表的"服务端/模型深度集成"流派。
+2.1 A1111 WebUI Tag Autocomplete：开源社区的集大成者
+a1111-sd-webui-tagcomplete 扩展是目前Stable Diffusion社区中使用率最高的补全工具，其技术架构对于离线优先（Local-First）的移动端应用具有极高的参考价值。
+2.1.1 客户端数据架构
+该扩展的核心设计理念是"零延迟"。为了实现这一目标，它摒弃了即时向服务端请求补全建议的方案，而是选择在初始化阶段将完整的标签数据库加载至浏览器内存中。
+* CSV数据解析机制：
+该扩展主要依赖CSV文件作为数据载体。根据源码分析，其数据结构非常紧凑，通常不包含表头，以减少文件体积。标准格式为 <标签名>,<类型ID>,<帖子计数>,<别名> 1。
+   * 类型ID（Type ID）： 这是一个关键的元数据设计。它直接映射到Danbooru图站的分类体系（如0代表通用标签，1代表艺术家，3代表版权作品，4代表角色）。这种数值化的分类不仅大大压缩了数据体积，还允许前端在渲染时通过简单的CSS类名映射（如 .tag-type-1）来实现不同颜色的高亮显示，从而在视觉上辅助用户快速区分标签性质 1。
+   * 别名系统（Alias System）： 这是一个多对一的映射机制。例如，用户输入 "hat" 时，系统不仅会检索到 "hat"，还会检索到 "cap"、"beanie" 等别名，并最终将模型训练时使用的标准化标签（如 "hat"）插入输入框。这对于非英语母语用户至关重要，因为他们可能更熟悉某个概念的非标准英文表达 4。
+2.1.2 触发器与上下文感知
+虽然名为"自动补全"，但该扩展实际上是一个基于规则的触发系统。它并非在任何时候都盲目搜索整个数据库，而是根据用户的输入前缀切换"搜索域"（Search Domain）。
+   * 多维触发逻辑：
+   * 常规输入：触发主数据库（Danbooru/e621）的搜索。
+   * 双下划线 __：触发通配符（Wildcards）文件的搜索。这是通过扫描 /scripts/wildcards 目录下的文本文件实现的，允许用户快速插入预设的标签组合 1。
+   * 尖括号 <：触发额外网络（Extra Networks）的搜索，包括LoRA、Embeddings（Textual Inversion）和Hypernetworks。这种设计极其巧妙，因为它将模型资产的调用与普通文本标签的输入在交互层面上统一了起来，但在数据层面上又是隔离的，避免了名为 "lora" 的普通标签与实际LoRA文件发生混淆 1。
+2.1.3 中文本地化实现原理
+对于中文用户，A1111扩展的本地化方案是通过"翻译映射表"实现的。
+   * 双重索引机制： 当加载了 Tags-zh-full-pack.csv 等翻译文件后，扩展会在内存中构建两个索引：一个是英文字符索引，一个是中文字符索引。
+   * 显示与值的如分离： 当用户输入 "校服" 时，搜索算法在中文索引中命中，界面上显示 "校服 (school_uniform)"，但点击后插入输入框的仍然是英文原词 "school_uniform"。这种"所见非所得"（WYSIWYG-inverse）的设计是处理跨语言提示词工程的标准范式 6。
+2.2 NovelAI：SaaS模式下的深度集成
+与A1111的客户端纯文本匹配不同，NovelAI展示了当补全系统与生成模型深度绑定时所能达到的体验高度。
+2.2.1 知识掌握度可视化（Knowledge Indicators）
+NovelAI最引人注目的特性是其标签建议不仅仅是"存在性"的提示，更是"有效性"的提示。
+   * 数据驱动的透明度： 当用户输入一个标签时，系统会通过视觉元素（如圆点的透明度或颜色深浅）来指示该标签在模型训练集中的权重或出现频率。这直接解决了"幻觉标签"（Hallucinated Tags）的问题——即用户输入了一个语义正确但模型从未见过的词，导致生成结果无效。对于移动端项目而言，若能获取训练数据的统计分布，复刻这一功能将极大提升用户的生成成功率 8。
+2.2.2 语法感知的权重系统
+NovelAI 的提示词语法允许使用大括号 {} 和方括号 `` 来调整权重。
+   * 非破坏性补全： 当用户输入 {blue 时，普通的补全算法可能会因为无法识别特殊字符而失效。NovelAI 的系统则具备语法清洗能力，它能识别出 { 是语法修饰符，从而提取出核心词根 blue 进行搜索，并在补全时智能地保留或补全闭合括号。这种对特定领域语言（DSL）的解析能力，是高级补全系统与简易文本补全的分水岭 9。
+2.3 ComfyUI：节点化架构的灵活性
+ComfyUI 的 Autocomplete-Plus 等插件展示了在非线性工作流中的补全逻辑。
+   * 动态数据源： 不同于 WebUI 需要用户手动下载 CSV，ComfyUI 的许多自定义节点脚本会在启动时自动检查并从 Hugging Face 拉取最新的标签数据 10。这种"在线更新、离线使用"的混合模式对于保持数据鲜活度至关重要，特别是考虑到动漫领域的新角色（如《原神》或《崩坏：星穹铁道》的新角色）层出不穷，标签库的迭代速度非常快。
+   * 格式化器（Auto Formatter）： ComfyUI 插件通常包含自动格式化功能，能在输入框失去焦点时自动清理多余的空格、逗号，并将标签规范化（如将下划线转换为空格，或反之）。在移动端，精确的光标控制极其困难，这种自动化的"卫生清理"功能是极佳的用户体验增强点 10。
+2.4 现有方案的局限性与移动端适配缺口
+尽管上述方案在桌面端表现优异，但在直接移植到移动端时存在显著缺陷：
+   1. 性能开销： 桌面端浏览器可以轻松处理数兆字节的 CSV 解析和十万级数组的遍历，但在中低端移动设备上，主线程进行如此大规模的计算会导致键盘输入卡顿（Jank），这是移动应用的大忌。
+   2. 交互模式： 桌面端的悬浮下拉菜单（Dropdown）依赖鼠标悬停和键盘方向键选择。在手机上，虚拟键盘占据了近一半的屏幕，悬浮菜单极易被遮挡，且手指点击的精度远低于鼠标。
+   3. 输入法冲突： 在手机上频繁切换中英文输入法是极度痛苦的。现有的 WebUI 插件虽然支持中文搜索，但对拼音（尤其是拼音首字母）的支持往往依赖于庞大的映射表，导致初始化缓慢。
+________________
+3. 数据层架构：构建全知全能的标签本体库
+任何自动补全系统的灵魂都是数据。对于文生图项目，尤其是涉及 "Newbie" 这种二次元/动漫风格引擎的项目，数据源的选择几乎是唯一的：Danbooru 和 e621 标签体系。
+3.1 核心数据源溯源与选型
+3.1.1 Danbooru 标签体系的统治地位
+目前主流的开源文生图模型（包括 SD1.5, SDXL, Pony Diffusion, 以及可能的 Newbie 早期版本）大多包含 Danbooru 标签作为训练数据的一部分或全部。Danbooru 的标签体系不仅仅是词汇表，它是一个具有层级和属性的本体论（Ontology）。
+   * 数据完备性： 截至 2024 年，Danbooru 标签库包含超过 500 万个条目，但其中真正高频使用的核心标签约为 10 万个。Hugging Face 上的 isek-ai/danbooru-tags-2024 数据集是一个经过清洗的、包含详细元数据（如帖子计数、分类）的优质来源 11。
+   * 数据结构解析： 一个标准的标签条目包含：
+   * name: 标签本体（如 1girl）。
+   * category: 类别（0=General, 1=Artist, 3=Copyright, 4=Character, 5=Meta）。
+   * post_count: 热度指标。这对于排序至关重要——用户输入 "blue" 时，blue_eyes（热门）应该排在 blue_feathers（冷门）之前 2。
+3.1.2 数据的获取与预处理策略
+直接在移动端请求 Danbooru API 是不可取的，因为 API 速率限制严且网络延迟高。正确的做法是构建一个构建时（Build-time） 或 定期同步（Cron-job） 的数据管道。
+   * 推荐方案： 编写一个 Python 脚本，每周从 Hugging Face 的 isek-ai/danbooru-tags-2024 或 DraconicDragon 的仓库拉取最新的 Parquet/CSV 文件 12。
+   * 清洗逻辑： 剔除 post_count < 100 的长尾标签。这些标签极少被模型有效学习，保留它们只会增加前端搜索的噪声和内存负担。
+3.2 本地化数据的构建：中文与拼音的桥梁
+针对用户的项目，中文支持是核心需求。单纯的英汉字典无法满足需求，必须引入拼音模糊匹配。
+3.2.1 翻译数据源
+社区维护的 Tags-zh-full-pack.csv 是最宝贵的资源。它通常包含了社区贡献者对于二次元特有词汇的精准翻译（例如将 "ahoge" 翻译为 "呆毛" 而不是 "阿霍格"）6。
+3.2.2 拼音索引的生成架构
+为了实现移动端"输入 xf 出 校服"的极致体验，我们需要在数据预处理阶段生成拼音索引，而不是在客户端实时计算。
+   * 数据膨胀问题： 如果为每个汉字生成全拼和首字母，数据体积会翻倍。
+   * 优化策略： 采用混合索引结构。
+   * 原始数据：{"n": "school_uniform", "z": "校服", "c": 50000}
+   * 预处理脚本（使用 pinyin-pro 库）：
+   * 提取 "校服" -> 全拼 xiaofu -> 首字母 xf。
+   * 将这些拼音特征注入到搜索索引中。
+   * 最终下发给客户端的 JSON 结构应极度精简，例如：
+JSON
+["school_uniform", "校服", "xiaofu", "xf", 0] // 0代表General类型
+
+这种数组格式比对象格式（JSON Objects）节省约 30%-40% 的体积，这对于移动端 10MB+ 的数据加载至关重要 14。
+3.3 "Newbie" 引擎的特殊数据需求：XML Schema
+用户提到的 "Newbie" 引擎（NewBie-Image-V0.1-Exp）引入了 XML 结构的提示词格式 16。这完全改变了数据的组织方式。
+      * 结构化标签： 数据层必须维护一份 XML 标签白名单，包括 <appearance>, <clothing>, <quality>, <artist>, <composition> 等 17。
+      * 上下文关联： 数据层需要建立"标签-上下文"的映射关系。
+      * 例如，school_uniform 属于 <clothing> 上下文。
+      * masterpiece 属于 <quality> 上下文。
+      * 虽然目前的 Danbooru 数据集没有直接提供这种 XML 映射，但我们可以利用 Danbooru 的 category 字段进行粗略映射（Category 4 -> <character>, Category 1 -> <artist>），或者利用 LLM 对高频标签进行一次性的语义分类，生成一份 context_map.json。
+________________
+4. 核心架构设计：移动端高性能补全引擎
+本章节将详细阐述如何在移动端浏览器（WebView）环境中实现媲美原生性能的补全引擎。核心挑战在于：主线程阻塞（Main Thread Blocking）。
+4.1 痛点分析：为什么普通实现会卡顿？
+在 JavaScript 主线程中，对一个包含 10 万个字符串的数组进行 filter 和 regex 匹配，在桌面级 CPU 上可能耗时 50ms，但在中低端 Android 手机上可能飙升至 300ms。在这 300ms 内，浏览器的 UI 渲染是冻结的，用户敲击键盘的动画会卡住，导致极差的手感。
+4.2 架构决策：Web Worker 异步计算模型
+为了保证 UI 的 60FPS 响应，所有的搜索计算必须移出主线程，放入 Web Worker。
+4.2.1 架构图解
+
+
+代码段
+
+
+
+
+graph TD
+   UI[主线程 UI Layer] -- 输入事件/光标位置 --> Controller[交互控制器]
+   Controller -- postMessage(Query, Context) --> Worker
+   subgraph Worker Thread
+       Data
+       Index[拼音/前缀索引]
+       Algo
+       Data -- 加载 --> Algo
+   end
+   Worker -- postMessage(Results) --> Controller
+   Controller -- 渲染数据 --> VirtualList[虚拟化列表组件]
+
+4.2.2 数据加载与缓存策略
+      * 首次加载： 应用启动时，Worker 线程独立发起 fetch 请求下载压缩后的标签库（推荐使用 Brotli 压缩，体积可从 20MB 压至 3-4MB）。
+      * 持久化缓存： Worker 接收到数据后，将其存入 IndexedDB。
+      * 优势： 下次启动时，Worker 直接从 IndexedDB 读取，无需网络请求，且不占用主线程 I/O 18。
+      * 版本控制： 在 LocalStorage 中存储数据版本号（Hash）。每次启动对比服务端版本，仅在有更新时重新下载。
+4.3 搜索算法选型
+在 Worker 内部，我们需要一个极速的搜索算法。
+      * 排除 Fuse.js： 尽管 Fuse.js 是最流行的模糊搜索库，但其在大数据量（>10k）下的性能表现不佳，且索引构建极其耗时 20。
+      * 推荐方案：uFuzzy 或 FlexSearch
+      * uFuzzy： 这是一个微型且极速的模糊搜索库，专门针对"在大量短语中搜索短语"的场景优化。它支持乱序匹配（Out-of-order），例如输入 "shirt white" 可以匹配到 "white_shirt"。这对于记不清标签确切顺序的用户非常友好 21。
+      * 算法配置：
+      1. 第一轮筛选（Filtering）： 使用 uFuzzy 的快速筛选器，基于字符集合进行粗筛（耗时 < 5ms）。
+      2. 第二轮排序（Ranking）： 对粗筛结果进行评分。
+      * 规则 1： 完全匹配优先。
+      * 规则 2： 前缀匹配优先（输入 xf，xf... 优于 ...xf）。
+      * 规则 3： 热门度优先（使用 Danbooru 的 post_count 进行加权）。
+4.4 拼音匹配的具体实现逻辑
+在 Worker 内部的搜索函数应包含以下逻辑分支：
+
+
+JavaScript
+
+
+
+
+function search(input) {
+ // 1. 尝试英文前缀匹配
+ let results = searchEnglishIndex(input);
+ 
+ // 2. 如果结果不足，尝试拼音首字母匹配
+ if (results.length < LIMIT) {
+   let pinyinResults = searchPinyinInitialsIndex(input);
+   results = merge(results, pinyinResults);
+ }
+ 
+ // 3. 如果仍不足，尝试中文模糊匹配
+ if (results.length < LIMIT) {
+   let chineseResults = searchChineseIndex(input);
+   results = merge(results, chineseResults);
+ }
+ 
+ return sortResultsByPopularity(results);
+}
+
+这种层级回退策略（Fallback Strategy）既保证了常用词的快速响应，又兼顾了生僻词的查找 22。
+________________
+5. 交互设计（UX）：移动端特有的交互范式
+在手机上复刻 PC 端的下拉列表是行不通的。我们需要为移动端定制交互模式。
+5.1 键盘上方的"建议栏"（Suggestion Bar）
+参考 iOS/Android 输入法的联想词设计，在虚拟键盘的正上方固定一个水平滚动的建议栏。
+      * 优势：
+      * 防遮挡： 永远不会被键盘挡住。
+      * 触控友好： 采用 Pill（药丸）形状的 Chip 设计，点击区域大 24。
+      * 视觉清晰： 可以在 Chip 内部展示丰富信息：左侧显示中文翻译（辅助确认），右侧显示英文原词（实际输入），背景色对应标签类型（如蓝色代表通用，粉色代表角色）。
+5.2 "Tag Chip" 输入模式
+用户在输入框中输入的不再是纯文本字符串，而是可视化的"标签块"（Chips）。
+      * 输入流： 用户输入 "cat" -> 点击建议栏中的 "cat_ears" -> 输入框插入一个蓝色的 "cat_ears" 块 -> 自动追加逗号和空格。
+      * 删除流： 用户点击退格键（Backspace），不是删除一个字母，而是选中整个 "cat_ears" 块；再次点击，删除整个块。这在移动端修改 Prompt 时能极大减少按键次数 26。
+5.3 针对 "Newbie" 引擎的 XML 辅助输入
+Newbie 引擎的 XML 格式（如 <appearance>...</appearance>）在手机上输入极度繁琐。系统应提供"结构化辅助"。
+5.3.1 状态机（State Machine）驱动的 UI
+补全引擎需要维护一个即时的状态机：
+      * State: Root (根层级)
+      * 当光标位于任何 XML 标签之外时。
+      * 建议内容： 仅显示结构化标签（<appearance>, <quality>, <artist> 等）。
+      * 交互： 点击 <appearance>，系统自动插入 <appearance>|</appearance>，并将光标置于中间。
+      * State: Inside Tag (标签内层级)
+      * 当光标位于 <clothing> 和 </clothing> 之间时。
+      * 建议内容： 显示常规 Danbooru 标签。
+      * 上下文加权： 此时应提升 "clothing" 相关标签（如 dress, skirt）的搜索权重，降低 "background" 相关标签的权重。虽然 Danbooru 数据没有细致到这种程度，但可以通过简单的关键词过滤（如标签名包含 dress）进行简单的重排序 16。
+      * State: Attribute Input (属性输入)
+      * Newbie 模型支持如 <character_1> 这样的属性。
+      * 交互： 提供一个 "添加角色" 的快捷按钮，点击后自动生成 <character_n> 模板。
+________________
+6. 技术栈选型与实施路线图
+6.1 技术栈推荐
+
+
+组件
+	推荐技术
+	理由
+	前端框架
+	React / Vue
+	虚拟化列表（Virtual List）和状态管理生态最成熟。
+	构建工具
+	Vite
+	对 Worker 的支持极佳（import Worker from './worker?worker'），开发体验好。
+	搜索算法
+	uFuzzy
+	针对短语匹配极致优化，体积小，速度快 21。
+	拼音库
+	pinyin-match
+	专为拼音模糊搜索设计，支持首字母匹配，体积仅 20KB 23。
+	数据库
+	IndexedDB (idb-keyval)
+	浏览器原生数据库，存储大文件的唯一选择。
+	UI 组件库
+	Vant UI / AntD Mobile
+	提供成熟的移动端输入框和 Popup 组件，减少开发成本。
+	6.2 实施路线图
+第一阶段：数据管道搭建（Data Pipeline）
+      1. 脚本编写： 编写 Python 脚本，拉取 Hugging Face 的 danbooru-tags-2024 和 Github 上的 Tags-zh-full-pack.csv。
+      2. 数据融合： 将中英文数据合并，生成 tags_master.json。
+      3. 拼音预处理： 遍历中文翻译，生成拼音首字母，追加到 JSON 中。
+      4. 压缩发布： 使用 Gzip/Brotli 压缩 JSON，上传至 CDN。
+第二阶段：核心引擎开发（Core Engine）
+      1. Worker 封装： 创建 SearchWorker，实现 loadData(), search(), sort() 接口。
+      2. 通讯机制： 设计主线程与 Worker 的 postMessage 协议，确保查询 ID 对应，防止竞态条件（Race Condition）。
+      3. 性能调优： 使用 Chrome Performance 面板分析 Worker 通讯开销，确保单次查询延迟 < 50ms。
+第三阶段：UI 与业务逻辑（UI Implementation）
+      1. 输入框改造： 封装 SmartTextarea 组件，监听 input 和 selectionChange 事件。
+      2. 光标嗅探： 实现一个轻量级的 Parser，实时分析光标当前所在的词（Word）和所在的 XML 标签范围（Context）。
+      3. 建议栏开发： 实现水平虚拟滚动列表。
+      4. Newbie 模式开关： 添加一个全局开关（Feature Flag），当启用 Newbie 模式时，激活 XML 状态机逻辑；禁用时，退回纯文本模式。
+________________
+7. 结论与展望
+本报告为移动端文生图项目提供了一套从数据底层到交互顶层的全链路解决方案。通过引入 Web Worker 异步搜索 和 IndexedDB 本地缓存，我们从根本上解决了移动端处理海量标签的性能瓶颈；通过 拼音首字母匹配算法，我们打破了移动端中英文输入的效率壁垒；而针对未来的 Newbie 引擎，我们设计的 XML 上下文感知状态机 将把提示词工程的门槛降至最低。
+这一架构不仅满足了当前的补全需求，更为未来可能的本地模型加载（WebGPU）或更复杂的 Prompt 逻辑预留了充足的扩展空间。实施该方案将显著提升产品的专业度和用户粘性，使您的应用在同质化严重的文生图市场中脱颖而出。
+核心数据与事实引用索引
+      * A1111 架构与数据结构： 1
+      * NovelAI 交互特性： 8
+      * ComfyUI 动态加载特性： 10
+      * Danbooru/e621 数据集与结构： 11
+      * Newbie 引擎 XML 格式与要求： 16
+      * Web Worker 性能优化： 19
+      * 移动端搜索算法与拼音库： 15
+      * 移动端 UI 设计模式（Chips）： 24
+      * 中文翻译资源： 6
+引用的著作
+      1. DominikDoom/a1111-sd-webui-tagcomplete: Booru style tag autocompletion for AUTOMATIC1111's Stable Diffusion web UI - GitHub, 访问时间为 十二月 24, 2025， https://github.com/DominikDoom/a1111-sd-webui-tagcomplete
+      2. Files · 1.4.2 · AI / a1111-sd-webui-tagcomplete - GitLab - apowo.com, 访问时间为 十二月 24, 2025， https://code.apowo.com/ai/a1111-sd-webui-tagcomplete/-/tree/1.4.2
+      3. Delete a1111-sd-webui-tagcomplete-main · haodi50/extensions at c4a540d - Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/haodi50/extensions/commit/c4a540d4b0f0c6f1cfcc1e937131fd672a00caad
+      4. camenduru/a1111-sd-webui-tagcomplete - GitHub, 访问时间为 十二月 24, 2025， https://github.com/camenduru/a1111-sd-webui-tagcomplete
+      5. ex/tag-complete/README.md - toc - Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/Toc/toc/blob/62cddf29831cd10dde099d4c862d43ca26ff6d88/ex/tag-complete/README.md
+      6. byzod/a1111-sd-webui-tagcomplete-CN: Booru style tag autocompletion for AUTOMATIC1111's Stable Diffusion web UI 简体中文 - GitHub, 访问时间为 十二月 24, 2025， https://github.com/byzod/a1111-sd-webui-tagcomplete-CN
+      7. Files · 1.8.0 · AI / a1111-sd-webui-tagcomplete - GitLab - apowo.com, 访问时间为 十二月 24, 2025， https://code.apowo.com/ai/a1111-sd-webui-tagcomplete/-/tree/1.8.0
+      8. Year Tags - | NovelAI Documentation, 访问时间为 十二月 24, 2025， https://docs.novelai.net/en/image/tags/
+      9. Tutorial: Intro to Image Generation - | NovelAI Documentation, 访问时间为 十二月 24, 2025， https://docs.novelai.net/en/image/tutorial-imgintro/
+      10. newtextdoc1111/ComfyUI-Autocomplete-Plus - GitHub, 访问时间为 十二月 24, 2025， https://github.com/newtextdoc1111/ComfyUI-Autocomplete-Plus
+      11. isek-ai/danbooru-tags-2024 · Datasets at Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/datasets/isek-ai/danbooru-tags-2024
+      12. Danbooru/e621 autocomplete tag lists incl. aliases (+ Krita AI support) - 22.12.2024 Refined, 访问时间为 十二月 24, 2025， https://civitai.com/models/950325/danboorue621-autocomplete-tag-lists-incl-aliases-krita-ai-support
+      13. README.md · deepghs/danbooru2024 at main - Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/datasets/deepghs/danbooru2024/blob/main/README.md
+      14. [Bug]: Unable to use specific controllNet preprocessor · Issue #541 · lllyasviel/stable-diffusion-webui-forge - GitHub, 访问时间为 十二月 24, 2025， https://github.com/lllyasviel/stable-diffusion-webui-forge/issues/541
+      15. Introduction | pinyin-pro, 访问时间为 十二月 24, 2025， https://pinyin-pro.cn/en/guide/compare.html
+      16. ComfyUI NewBie-image-Exp0.1 Workflow Example, 访问时间为 十二月 24, 2025， https://docs.comfy.org/tutorials/image/newbie-image/newbie-image-exp-0-1
+      17. XML Prompt.json · NewBie-AI/NewBie-image-Exp0.1 at main - Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/NewBie-AI/NewBie-image-Exp0.1/blob/main/XML%20Prompt.json
+      18. What are serious and super-fast client-side (browser-runnable) search+filter+sort libraries that work with large (at least hundreds of thousands objects) data? Crossfilter, LokiJS, PourOver... what else? : r/javascript - Reddit, 访问时间为 十二月 24, 2025， https://www.reddit.com/r/javascript/comments/4005bc/what_are_serious_and_superfast_clientside/
+      19. Examining Web Worker Performance - code and geo musings, 访问时间为 十二月 24, 2025， https://www.jameslmilner.com/posts/web-worker-performance/
+      20. Fuzzy Search with Javascript | Typesense, 访问时间为 十二月 24, 2025， https://typesense.org/learn/fuzzy-search-javascript/
+      21. leeoniya/uFuzzy: A tiny, efficient fuzzy search that doesn't suck - GitHub, 访问时间为 十二月 24, 2025， https://github.com/leeoniya/uFuzzy
+      22. Regex for Matching Pinyin - Stack Overflow, 访问时间为 十二月 24, 2025， https://stackoverflow.com/questions/20736291/regex-for-matching-pinyin
+      23. pinyin-match - NPM, 访问时间为 十二月 24, 2025， https://www.npmjs.com/package/pinyin-match
+      24. Chip UI Design: Best practices, Design variants & Examples | Mobbin, 访问时间为 十二月 24, 2025， https://mobbin.com/glossary/chip
+      25. Chip | Jetpack Compose - Android Developers, 访问时间为 十二月 24, 2025， https://developer.android.com/develop/ui/compose/components/chip
+      26. Chips - Material Design, 访问时间为 十二月 24, 2025， https://m2.material.io/components/chips
+      27. a1111-sd-webui-tagcomplete/README.md · inx38/mx at main - Hugging Face, 访问时间为 十二月 24, 2025， https://huggingface.co/inx38/mx/blob/main/a1111-sd-webui-tagcomplete/README.md
+      28. Updated danbooru.csv(2024-10-16) for WebUI Tag Autocomplete - 20241016 - Civitai, 访问时间为 十二月 24, 2025， https://civitai.com/models/862893/updated-danboorucsv2024-10-16-for-webui-tag-autocomplete
+      29. Using Web Workers to Handle Heavy Tasks in the Browser - DEV Community, 访问时间为 十二月 24, 2025， https://dev.to/vunguyeen/using-web-workers-to-handle-heavy-tasks-in-the-browser-27lo
+      30. Performance tuning with Web Workers - Ty Hopp, 访问时间为 十二月 24, 2025， https://tyhopp.com/notes/performance-tuning-web-worker
+      31. Using Web Workers - Web APIs - MDN Web Docs, 访问时间为 十二月 24, 2025， https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers
+      32. Understanding and Using Web Workers - CODE Magazine, 访问时间为 十二月 24, 2025， https://www.codemag.com/Article/2101071/Understanding-and-Using-Web-Workers
+      33. Chips and Tags | DHL Brand Hub, 访问时间为 十二月 24, 2025， https://www.dpdhl-brands.com/en/dhl/chips-tags
