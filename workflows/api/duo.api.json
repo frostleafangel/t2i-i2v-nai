@@ -1,0 +1,651 @@
+{
+  "6": {
+    "inputs": {
+      "ckpt_name": "oneObsession_v19.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    }
+  },
+  "9": {
+    "inputs": {
+      "seed": 805765451682334,
+      "steps": 30,
+      "cfg": 4.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "karras",
+      "denoise": 1,
+      "preview_method": "latent2rgb",
+      "vae_decode": "true",
+      "model": [
+        "18",
+        0
+      ],
+      "positive": [
+        "18",
+        1
+      ],
+      "negative": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "60",
+        2
+      ],
+      "optional_vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "KSampler (Efficient)",
+    "_meta": {
+      "title": "KSampler (Efficient)"
+    }
+  },
+  "10": {
+    "inputs": {
+      "text": [
+        "34",
+        0
+      ],
+      "clip": [
+        "61",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "11": {
+    "inputs": {
+      "text": [
+        "39",
+        0
+      ],
+      "clip": [
+        "61",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "负面提示词"
+    }
+  },
+  "14": {
+    "inputs": {
+      "宽度": [
+        "60",
+        0
+      ],
+      "高度": [
+        "60",
+        1
+      ],
+      "分割比例": 0.5,
+      "分割方向": "竖"
+    },
+    "class_type": "ZML_MaskSplitNode",
+    "_meta": {
+      "title": "ZML_遮罩分割"
+    }
+  },
+  "15": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "17",
+        0
+      ],
+      "conditioning": [
+        "19",
+        0
+      ],
+      "mask": [
+        "144",
+        0
+      ]
+    },
+    "class_type": "DenseDiffusionAddCondNode",
+    "_meta": {
+      "title": "DenseDiffusion Add Cond"
+    }
+  },
+  "16": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "15",
+        0
+      ],
+      "conditioning": [
+        "25",
+        0
+      ],
+      "mask": [
+        "145",
+        0
+      ]
+    },
+    "class_type": "DenseDiffusionAddCondNode",
+    "_meta": {
+      "title": "DenseDiffusion Add Cond"
+    }
+  },
+  "17": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "61",
+        0
+      ],
+      "conditioning": [
+        "10",
+        0
+      ],
+      "mask": [
+        "14",
+        4
+      ]
+    },
+    "class_type": "DenseDiffusionAddCondNode",
+    "_meta": {
+      "title": "DenseDiffusion Add Cond"
+    }
+  },
+  "18": {
+    "inputs": {
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "DenseDiffusionApplyNode",
+    "_meta": {
+      "title": "DenseDiffusion Apply"
+    }
+  },
+  "19": {
+    "inputs": {
+      "text": [
+        "21",
+        0
+      ],
+      "clip": [
+        "61",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "21": {
+    "inputs": {
+      "格式化标点符号": true,
+      "分隔符": ",",
+      "文本1": [
+        "62",
+        0
+      ],
+      "文本2": [
+        "65",
+        0
+      ],
+      "文本3": ""
+    },
+    "class_type": "ZML_MultiTextInput3",
+    "_meta": {
+      "title": "ZML_多文本输入_三"
+    }
+  },
+  "25": {
+    "inputs": {
+      "text": [
+        "26",
+        0
+      ],
+      "clip": [
+        "61",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "26": {
+    "inputs": {
+      "格式化标点符号": true,
+      "分隔符": ",",
+      "文本1": [
+        "64",
+        0
+      ],
+      "文本2": [
+        "66",
+        0
+      ],
+      "文本3": ""
+    },
+    "class_type": "ZML_MultiTextInput3",
+    "_meta": {
+      "title": "ZML_多文本输入_三"
+    }
+  },
+  "34": {
+    "inputs": {
+      "格式化标点符号": true,
+      "分隔符": ",",
+      "文本1": [
+        "67",
+        0
+      ],
+      "文本2": [
+        "61",
+        5
+      ],
+      "文本3": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "ZML_MultiTextInput3",
+    "_meta": {
+      "title": "ZML_多文本输入_三"
+    }
+  },
+  "36": {
+    "inputs": {
+      "文本": "masterpiece,best quality,newest,highres,absurdres,incredibly absurdres,very awa,very aesthetic,extreme aesthetic,detailed backgroud, finished,overlapping,appropriate posture,appropriate configuration,cropping,thick dense skin,ultra-precise skin,soft cheeks,"
+    },
+    "class_type": "ZML_TextInput",
+    "_meta": {
+      "title": "质量词"
+    }
+  },
+  "39": {
+    "inputs": {
+      "格式化标点符号": true,
+      "分隔符": ",",
+      "文本1": "",
+      "文本2": [
+        "40",
+        0
+      ],
+      "文本3": ""
+    },
+    "class_type": "ZML_MultiTextInput3",
+    "_meta": {
+      "title": "ZML_多文本输入_三"
+    }
+  },
+  "40": {
+    "inputs": {
+      "文本": "low quality, worst quality, normal quality, text, signature, jpeg artifacts, old, early, copyright name, watermark, artist name, logo, artist logo, patreon logo, blurry, cloned face, cropped, deformed, disfigured, error, out of frame, owres, poorly drawn face, username, furry girl, mole,\n"
+    },
+    "class_type": "ZML_TextInput",
+    "_meta": {
+      "title": "预设负面提示词"
+    }
+  },
+  "60": {
+    "inputs": {
+      "预设": "SDXL_1024x1024",
+      "互换宽高": false,
+      "随机模式": false,
+      "批次数量": 1,
+      "管理预设": null
+    },
+    "class_type": "ZML_PresetResolution",
+    "_meta": {
+      "title": "ZML_预设分辨率"
+    }
+  },
+  "61": {
+    "inputs": {
+      "lora_loader_data": "{\"entries\":[{\"id\":\"folder1759376083178\",\"item_type\":\"folder\",\"name\":\"新建文件夹\",\"is_collapsed\":false,\"parent_id\":null},{\"id\":\"lora1\",\"item_type\":\"lora\",\"display_name\":\"\",\"custom_text\":\"\",\"lora_name\":\"None\",\"weight\":1,\"enabled\":true,\"parent_id\":null}]}",
+      "model": [
+        "6",
+        0
+      ],
+      "clip": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "ZmlPowerLoraLoader",
+    "_meta": {
+      "title": "ZML_强力lora加载器"
+    }
+  },
+  "62": {
+    "inputs": {
+      "positive_prompt": "heads together, ",
+      "打开标签化PromptUI": "open"
+    },
+    "class_type": "ZML_PromptUINode",
+    "_meta": {
+      "title": "A1"
+    }
+  },
+  "64": {
+    "inputs": {
+      "positive_prompt": "heads together, ",
+      "打开标签化PromptUI": "open"
+    },
+    "class_type": "ZML_PromptUINode",
+    "_meta": {
+      "title": "B1"
+    }
+  },
+  "65": {
+    "inputs": {
+      "文本": "1girl, solo, grey hair, medium hair, middle part, wavy ends, slender eyes, big breasts, red eyes, nail polish, nail art, blue nails, long legs, "
+    },
+    "class_type": "ZML_TextInput",
+    "_meta": {
+      "title": "A2"
+    }
+  },
+  "66": {
+    "inputs": {
+      "文本": "1girl,(blue hair),long hair,(blue eyes), smile,big breasts, gradient eyes,full body, long legs, "
+    },
+    "class_type": "ZML_TextInput",
+    "_meta": {
+      "title": "B2"
+    }
+  },
+  "67": {
+    "inputs": {
+      "positive_prompt": "[AGM86997980], [ciloranko], [wlop], [dishwasher1910], [meion], (kuroduki \\(pieat\\)), [kousaki], [ask (askzy)], [Liduke], HDR, 8K, masterpiece, best quality, amazing quality, very aesthetic, detailed eyes, sharp eyes, realistic, (flat color:2.0), haiz ai, no lineart, no outline, Flat vector, (2girls:1.3), yuri, indoor, sitting, ",
+      "打开标签化PromptUI": "open"
+    },
+    "class_type": "ZML_PromptUINode",
+    "_meta": {
+      "title": "主体"
+    }
+  },
+  "68": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "scale_by": 1.5,
+      "samples": [
+        "9",
+        3
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "缩放Latent（比例）"
+    }
+  },
+  "144": {
+    "inputs": {
+      "any_02": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "145": {
+    "inputs": {
+      "any_02": [
+        "14",
+        1
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "254": {
+    "inputs": {
+      "rgthree_comparer": {
+        "images": [
+          {
+            "name": "A",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_zbryo_00015_.png&type=temp&subfolder=&rand=0.6249271485310499"
+          },
+          {
+            "name": "B",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_zbryo_00016_.png&type=temp&subfolder=&rand=0.6963704441132641"
+          }
+        ]
+      },
+      "image_a": [
+        "9",
+        5
+      ],
+      "image_b": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "Image Comparer (rgthree)",
+    "_meta": {
+      "title": "Image Comparer (rgthree)"
+    }
+  },
+  "256": {
+    "inputs": {
+      "upscale_by": 1.25,
+      "seed": 128546938883780,
+      "steps": 20,
+      "cfg": 4.5,
+      "sampler_name": "res_multistep",
+      "scheduler": "exponential",
+      "denoise": 0.15,
+      "mode_type": "Linear",
+      "tile_width": 832,
+      "tile_height": 1216,
+      "mask_blur": 8,
+      "tile_padding": 32,
+      "seam_fix_mode": "None",
+      "seam_fix_denoise": 0,
+      "seam_fix_width": 64,
+      "seam_fix_mask_blur": 8,
+      "seam_fix_padding": 16,
+      "force_uniform_tiles": true,
+      "tiled_decode": false,
+      "image": [
+        "9",
+        5
+      ],
+      "model": [
+        "61",
+        0
+      ],
+      "positive": [
+        "10",
+        0
+      ],
+      "negative": [
+        "11",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ],
+      "upscale_model": [
+        "266",
+        0
+      ]
+    },
+    "class_type": "UltimateSDUpscale",
+    "_meta": {
+      "title": "Ultimate SD Upscale"
+    }
+  },
+  "258": {
+    "inputs": {
+      "filename_prefix": "Standard_ComfyUI",
+      "images": [
+        "9",
+        5
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "259": {
+    "inputs": {
+      "filename_prefix": "Standard_ComfyUI_SecondUpscale",
+      "images": [
+        "261",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "260": {
+    "inputs": {
+      "seed": 908649221320984,
+      "steps": 20,
+      "cfg": 4.5,
+      "sampler_name": "res_multistep",
+      "scheduler": "exponential",
+      "denoise": 0.15,
+      "model": [
+        "61",
+        0
+      ],
+      "positive": [
+        "10",
+        0
+      ],
+      "negative": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "262",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "261": {
+    "inputs": {
+      "samples": [
+        "260",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "262": {
+    "inputs": {
+      "pixels": [
+        "264",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE编码"
+    }
+  },
+  "263": {
+    "inputs": {
+      "filename_prefix": "Standard_ComfyUI_Upscaled",
+      "images": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "264": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": 1196,
+      "height": 1748,
+      "crop": "disabled",
+      "image": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "缩放图像"
+    }
+  },
+  "266": {
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "加载放大模型"
+    }
+  },
+  "267": {
+    "inputs": {
+      "rgthree_comparer": {
+        "images": [
+          {
+            "name": "A",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_kffkb_00009_.png&type=temp&subfolder=&rand=0.5340866618928226"
+          },
+          {
+            "name": "B",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_kffkb_00010_.png&type=temp&subfolder=&rand=0.31907015075964007"
+          }
+        ]
+      },
+      "image_a": [
+        "256",
+        0
+      ],
+      "image_b": [
+        "261",
+        0
+      ]
+    },
+    "class_type": "Image Comparer (rgthree)",
+    "_meta": {
+      "title": "Image Comparer (rgthree)"
+    }
+  }
+}

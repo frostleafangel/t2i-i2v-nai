@@ -1,0 +1,715 @@
+{
+  "id": "c8c1de0f-e86a-4a80-8226-d78e0e320f1c",
+  "revision": 0,
+  "last_node_id": 20,
+  "last_link_id": 31,
+  "nodes": [
+    {
+      "id": 12,
+      "type": "EmptyLatentImage",
+      "pos": [
+        6355.096897451528,
+        1991.315109641317
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        832,
+        1216,
+        1
+      ]
+    },
+    {
+      "id": 10,
+      "type": "CLIPTextEncode",
+      "pos": [
+        6652.8905423079495,
+        1544.8371110684507
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            14,
+            22
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "masterpiece, best quality, 1girl 1futa, (duo), black hair, ((vaginal penetration)), (futa on female), sex, sidelocks,  hair over one eye, black eyes, lips,   makeup, black choker, eyeshadow, gothic, black lips, dark theme, bottomless, futa and girl wearing bikini top, futa nude, revealing penis, (futanari on female), standing sex, holding leg, close up, vaginal, erect penis, huge penis, testicles, foreskin, sexy body, hot girl, cleavage, large breasts, jewellery, lots of jewellery, futa and female fucking, close up, touching eachother inappropriately, ((futa penetrates girl)), (girl moaning), (size difference), horny, posing, extreme sex, extreme penetration, ((sex pose)), sexy futa, sexy girl, smug, playful, horny, couple, hugging, in love, loving eachother"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "CLIPTextEncode",
+      "pos": [
+        6658.582067860478,
+        1789.4580462653457
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            17,
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "lowres, (worst quality,bad quality,low quality:1.2),\nbad anatomy, watermark, trio, 3futas, fused hands, bad hands, boy,, looking at viewer"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        5130.534313555967,
+        1729.790996669434
+      ],
+      "size": [
+        273.4576171875,
+        98
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            8,
+            25
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            27
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            20,
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "hassaku_xl_illustrious_v1.3.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "Lora Loader Stack (rgthree)",
+      "pos": [
+        5877.272927655055,
+        1716.675075820212
+      ],
+      "size": [
+        282.542578125,
+        246
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 8
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            15,
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "1.0.2512112053",
+        "Node name for S&R": "Lora Loader Stack (rgthree)"
+      },
+      "widgets_values": [
+        "Dramatic_Lighting_Slider.safetensors",
+        4.95,
+        "Shiiro_Styles_Niji.safetensors",
+        0.9,
+        "None",
+        1,
+        "None",
+        1
+      ]
+    },
+    {
+      "id": 16,
+      "type": "CLIPSetLastLayer",
+      "pos": [
+        5502.269329184169,
+        1773.488533496469
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            28
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "CLIPSetLastLayer"
+      },
+      "widgets_values": [
+        -2
+      ]
+    },
+    {
+      "id": 1,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        6675.8586231874815,
+        2039.7705560791107
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "4x_foolhardy_Remacri.pth"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "KSampler",
+      "pos": [
+        7268.915473537965,
+        1655.9782650516454
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 14
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 17
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        784203621429917,
+        "randomize",
+        30,
+        5,
+        "euler_ancestral",
+        "karras",
+        1
+      ]
+    },
+    {
+      "id": 15,
+      "type": "PreviewImage",
+      "pos": [
+        9046.139292209087,
+        1732.0558733410944
+      ],
+      "size": [
+        495.37842107293,
+        519.1957947040917
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 26
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        7607.904882692476,
+        1800.515862470873
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 11
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            12,
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "PreviewImage",
+      "pos": [
+        7840.451218745724,
+        1909.1091891600877
+      ],
+      "size": [
+        471.6673839628238,
+        524.575575840325
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 24
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.4.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "UltimateSDUpscale",
+      "pos": [
+        8465.461949375895,
+        1662.545101997517
+      ],
+      "size": [
+        277.859375,
+        614
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 12
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 25
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 22
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 23
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 21
+        },
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            26
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_ultimatesdupscale",
+        "ver": "1.6.0",
+        "Node name for S&R": "UltimateSDUpscale"
+      },
+      "widgets_values": [
+        1.5,
+        411557480600502,
+        "randomize",
+        20,
+        4.5,
+        "euler",
+        "karras",
+        0.2,
+        "Linear",
+        512,
+        512,
+        8,
+        32,
+        "None",
+        1,
+        64,
+        8,
+        16,
+        true,
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      5,
+      "UPSCALE_MODEL"
+    ],
+    [
+      8,
+      3,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      9,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      12,
+      8,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      7,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      14,
+      10,
+      0,
+      9,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      15,
+      7,
+      1,
+      10,
+      0,
+      "CLIP"
+    ],
+    [
+      16,
+      7,
+      1,
+      11,
+      0,
+      "CLIP"
+    ],
+    [
+      17,
+      11,
+      0,
+      9,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      18,
+      12,
+      0,
+      9,
+      3,
+      "LATENT"
+    ],
+    [
+      20,
+      3,
+      2,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      21,
+      3,
+      2,
+      2,
+      4,
+      "VAE"
+    ],
+    [
+      22,
+      10,
+      0,
+      2,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      23,
+      11,
+      0,
+      2,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      24,
+      8,
+      0,
+      14,
+      0,
+      "IMAGE"
+    ],
+    [
+      25,
+      3,
+      0,
+      2,
+      1,
+      "MODEL"
+    ],
+    [
+      26,
+      2,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      27,
+      3,
+      1,
+      16,
+      0,
+      "CLIP"
+    ],
+    [
+      28,
+      16,
+      0,
+      7,
+      1,
+      "CLIP"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7627768444385618,
+      "offset": [
+        -6076.568959469997,
+        -1134.8299311364785
+      ]
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.34.8"
+  },
+  "version": 0.4
+}

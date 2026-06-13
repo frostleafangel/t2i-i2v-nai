@@ -1,0 +1,166 @@
+{
+  "1": {
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "空Latent图像"
+    }
+  },
+  "2": {
+    "inputs": {
+      "text": "masterpiece, best quality, 1girl 1futa, (duo), black hair, ((vaginal penetration)), (futa on female), sex, sidelocks,  hair over one eye, black eyes, lips,   makeup, black choker, eyeshadow, gothic, black lips, dark theme, bottomless, futa and girl wearing bikini top, futa nude, revealing penis, (futanari on female), standing sex, holding leg, close up, vaginal, erect penis, huge penis, testicles, foreskin, sexy body, hot girl, cleavage, large breasts, jewellery, lots of jewellery, futa and female fucking, close up, touching eachother inappropriately, ((futa penetrates girl)), (girl moaning), (size difference), horny, posing, extreme sex, extreme penetration, ((sex pose)), sexy futa, sexy girl, smug, playful, horny, couple, hugging, in love, loving eachother",
+      "clip": [
+        "5",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": "lowres, (worst quality,bad quality,low quality:1.2),\nbad anatomy, watermark, trio, 3futas, fused hands, bad hands, boy,, looking at viewer",
+      "clip": [
+        "5",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "hassaku_xl_illustrious_v1.3.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    }
+  },
+  "5": {
+    "inputs": {
+      "lora_01": "Dramatic_Lighting_Slider.safetensors",
+      "strength_01": 4.95,
+      "lora_02": "Shiiro_Styles_Niji.safetensors",
+      "strength_02": 0.9,
+      "lora_03": "None",
+      "strength_03": 1,
+      "lora_04": "None",
+      "strength_04": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "clip": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "Lora Loader Stack (rgthree)",
+    "_meta": {
+      "title": "Lora Loader Stack (rgthree)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "stop_at_clip_layer": -2,
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "设置CLIP最后一层"
+    }
+  },
+  "7": {
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "加载放大模型"
+    }
+  },
+  "9": {
+    "inputs": {
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "预览图像"
+    }
+  },
+  "12": {
+    "inputs": {
+      "upscale_by": 1.5,
+      "seed": 66540720779274,
+      "steps": 20,
+      "cfg": 4.5,
+      "sampler_name": "euler",
+      "scheduler": "karras",
+      "denoise": 0.2,
+      "mode_type": "Linear",
+      "tile_width": 512,
+      "tile_height": 512,
+      "mask_blur": 8,
+      "tile_padding": 32,
+      "seam_fix_mode": "None",
+      "seam_fix_denoise": 1,
+      "seam_fix_width": 64,
+      "seam_fix_mask_blur": 8,
+      "seam_fix_padding": 16,
+      "force_uniform_tiles": true,
+      "tiled_decode": false,
+      "image": [
+        "13",
+        0
+      ],
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ],
+      "upscale_model": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "UltimateSDUpscale",
+    "_meta": {
+      "title": "Ultimate SD Upscale"
+    }
+  },
+  "13": {
+    "inputs": {
+      "image": "newbie_1765331582828.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  }
+}

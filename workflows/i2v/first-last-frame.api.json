@@ -1,0 +1,795 @@
+{
+  "422": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "911:426",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Loras LOW"
+    }
+  },
+  "436": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "911:425",
+        0
+      ],
+      "clip": [
+        "911:1033",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Loras HIGH"
+    }
+  },
+  "644": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "958",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "958": {
+    "inputs": {
+      "frame_rate": [
+        "911:943",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "video/2026-01-19/124744",
+      "format": "video/h265-mp4",
+      "pix_fmt": "yuv420p10le",
+      "crf": 19,
+      "save_metadata": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "911:997",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "959": {
+    "inputs": {
+      "image": "放大_00004_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "首帧图像"
+    }
+  },
+  "960": {
+    "inputs": {
+      "image": "放大_00002_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "末帧图像"
+    }
+  },
+  "969": {
+    "inputs": {
+      "anything": [
+        "958",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "清理显存占用"
+    }
+  },
+  "970": {
+    "inputs": {},
+    "class_type": "UnloadModel",
+    "_meta": {
+      "title": "UnloadModel"
+    }
+  },
+  "911:956": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "911:915",
+        0
+      ],
+      "steps": [
+        "911:914",
+        0
+      ],
+      "cfg": [
+        "911:914",
+        2
+      ],
+      "sampler_name": [
+        "911:914",
+        3
+      ],
+      "scheduler": [
+        "911:914",
+        4
+      ],
+      "start_at_step": 0,
+      "end_at_step": [
+        "911:914",
+        1
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "436",
+        0
+      ],
+      "positive": [
+        "911:955",
+        0
+      ],
+      "negative": [
+        "911:955",
+        1
+      ],
+      "latent_image": [
+        "911:955",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "采样器（高噪声）"
+    }
+  },
+  "911:966": {
+    "inputs": {
+      "ckpt_name": "rife49.pth",
+      "clear_cache_after_n_frames": 10,
+      "multiplier": 2,
+      "fast_mode": true,
+      "ensemble": true,
+      "scale_factor": 1,
+      "frames": [
+        "911:1003",
+        0
+      ]
+    },
+    "class_type": "RIFE VFI",
+    "_meta": {
+      "title": "RIFE VFI (recommend rife47 and rife49)"
+    }
+  },
+  "911:969": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": [
+        "911:915",
+        0
+      ],
+      "steps": [
+        "911:914",
+        0
+      ],
+      "cfg": [
+        "911:914",
+        2
+      ],
+      "sampler_name": [
+        "911:914",
+        3
+      ],
+      "scheduler": [
+        "911:914",
+        4
+      ],
+      "start_at_step": [
+        "911:914",
+        1
+      ],
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "422",
+        0
+      ],
+      "positive": [
+        "911:955",
+        0
+      ],
+      "negative": [
+        "911:955",
+        1
+      ],
+      "latent_image": [
+        "911:956",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "采样器（低噪声）"
+    }
+  },
+  "911:943": {
+    "inputs": {
+      "a": [
+        "911:457",
+        0
+      ],
+      "b": 2,
+      "operation": "multiply"
+    },
+    "class_type": "easy mathFloat",
+    "_meta": {
+      "title": "浮点比较"
+    }
+  },
+  "911:964": {
+    "inputs": {
+      "samples": [
+        "911:969",
+        0
+      ],
+      "vae": [
+        "911:1032",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "911:1012": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "布尔值"
+    }
+  },
+  "911:1017": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "布尔值"
+    }
+  },
+  "911:997": {
+    "inputs": {
+      "boolean": [
+        "911:1019",
+        0
+      ],
+      "on_true": [
+        "911:1072:204",
+        0
+      ],
+      "on_false": [
+        "911:937",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "是否判断"
+    }
+  },
+  "911:1045": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走, censored, mosaic censoring, bar censor, pixelated, glowing, bloom, blurry, day, out of focus, low detail, bad anatomy, ugly, overexposed, underexposed, distorted face, extra limbs, cartoonish, 3d render artifacts, duplicate people, unnatural lighting, bad composition, missing shadows, low resolution, poorly textured, glitch, noise, grain, static, motionless, still frame, overall grayish, worst quality, low quality, JPEG compression artifacts, subtitles, stylized, artwork, painting, illustration, cluttered background, many people in background, three legs, walking backward, zoom out, zoom in, mouth speaking, moving mouth, talking, speaking, mute speaking, unnatural skin tone, discolored eyelid, red eyelids, red upper eyelids, no red eyeshadow, closed eyes, no wide-open innocent eyes, poorly drawn hands, extra fingers, fused fingers, poorly drawn face, deformed, disfigured, malformed limbs, thighs, fog, mist, voluminous eyelashes, blush, Disappearance,",
+      "clip": [
+        "436",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "负面提示词"
+    }
+  },
+  "911:1032": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "911:1044": {
+    "inputs": {
+      "text": "Raw photorealistic footage, authentic film look, high-fidelity details. (NSFWSKS:1.3). 1girl, grey hair, long hair, red eyes, large demon horns with gold ornaments, blue gemstone necklace. (Male POV). The video captures a transition from a deepthroat blowjob to an ejaculation finish. Starting from the girl vigorously swallowing the large penis to the hilt, she then slowly withdraws her head. The man withdraws his penis from the woman's mouth, and the glans is visible. A sudden ejaculation follows, with thick white semen spraying and dripping across her face, lips, and open mouth. The final shot shows the woman with her mouth wide open, sticking out her tongue, dripping with semen, in a lewd and expressive pose. Saliva and cum trails connect her lips to the penis. Her eyes are wide with a euphoric and naughty expression. Handheld camera shake during the transition, sharp focus throughout, 24fps.",
+      "clip": [
+        "436",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "正面提示词"
+    }
+  },
+  "911:938": {
+    "inputs": {
+      "a": [
+        "911:1072:194",
+        0
+      ],
+      "b": 2,
+      "operation": "multiply"
+    },
+    "class_type": "easy mathInt",
+    "_meta": {
+      "title": "宽度计算"
+    }
+  },
+  "911:939": {
+    "inputs": {
+      "a": [
+        "911:1072:194",
+        1
+      ],
+      "b": 2,
+      "operation": "multiply"
+    },
+    "class_type": "easy mathInt",
+    "_meta": {
+      "title": "高度计算"
+    }
+  },
+  "911:1021": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "911:1019",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "Display Any (rgthree)"
+    }
+  },
+  "911:1019": {
+    "inputs": {
+      "any_03": [
+        "911:1017",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:1003": {
+    "inputs": {
+      "boolean": [
+        "911:1016",
+        0
+      ],
+      "on_true": [
+        "911:1028",
+        0
+      ],
+      "on_false": [
+        "911:1029",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "是否判断"
+    }
+  },
+  "911:1020": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "911:1016",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "Display Any (rgthree)"
+    }
+  },
+  "911:1029": {
+    "inputs": {
+      "any_01": [
+        "911:964",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:1016": {
+    "inputs": {
+      "any_02": [
+        "911:1012",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:1028": {
+    "inputs": {},
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:955": {
+    "inputs": {
+      "width": [
+        "911:1072:194",
+        0
+      ],
+      "height": [
+        "911:1072:194",
+        1
+      ],
+      "length": [
+        "911:1073",
+        0
+      ],
+      "batch_size": 1,
+      "positive": [
+        "911:1044",
+        0
+      ],
+      "negative": [
+        "911:1045",
+        0
+      ],
+      "vae": [
+        "911:1032",
+        0
+      ],
+      "start_image": [
+        "911:1072:204",
+        0
+      ],
+      "end_image": [
+        "911:1056",
+        0
+      ]
+    },
+    "class_type": "WanFirstLastFrameToVideo",
+    "_meta": {
+      "title": "WanFirstLastFrameToVideo"
+    }
+  },
+  "911:1041": {
+    "inputs": {
+      "any_01": [
+        "911:1037",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:1043": {
+    "inputs": {
+      "any_01": [
+        "911:1042",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "911:1056": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "911:1072:194",
+        0
+      ],
+      "height": [
+        "911:1072:194",
+        1
+      ],
+      "crop": "center",
+      "image": [
+        "960",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "缩放图像"
+    }
+  },
+  "911:937": {
+    "inputs": {
+      "width": [
+        "911:938",
+        0
+      ],
+      "height": [
+        "911:939",
+        0
+      ],
+      "resize_mode": "Keep AR",
+      "divisible_by": 1,
+      "max_batch_size": 3,
+      "sinc_window": 3,
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "precision": "fp32",
+      "image": [
+        "911:966",
+        0
+      ]
+    },
+    "class_type": "BatchResizeWithLanczos",
+    "_meta": {
+      "title": "🐇 Batch Resize w/ Lanczos"
+    }
+  },
+  "911:425": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "911:1041",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Sigma偏移 高噪声"
+    }
+  },
+  "911:426": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "911:1043",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Sigma偏移 低噪声"
+    }
+  },
+  "911:1037": {
+    "inputs": {
+      "ckpt_name": "DasiwaWAN22I2V14BLightspeed_synthseductionHighV9.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "加载检查点 高噪声"
+    }
+  },
+  "911:1042": {
+    "inputs": {
+      "ckpt_name": "DasiwaWAN22I2V14BLightspeed_synthseductionLowV9.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "加载检查点 低噪声"
+    }
+  },
+  "911:1072:194": {
+    "inputs": {
+      "image": [
+        "911:1072:204",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "获取图像尺寸"
+    }
+  },
+  "911:1072:204": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "911:1072:210",
+        0
+      ],
+      "height": [
+        "911:1072:211",
+        0
+      ],
+      "crop": "disabled",
+      "image": [
+        "959",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "缩放图像"
+    }
+  },
+  "911:1072:213": {
+    "inputs": {
+      "expression": "round((a / (b / c)) / 16) * 16",
+      "a": [
+        "911:1072:212",
+        0
+      ],
+      "b": [
+        "911:1072:201",
+        0
+      ],
+      "c": [
+        "911:1072:201",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Height 🐍"
+    }
+  },
+  "911:1072:212": {
+    "inputs": {
+      "expression": "round(sqrt(0.4 * 1000000 * (b / c)) / 16) * 16",
+      "b": [
+        "911:1072:201",
+        0
+      ],
+      "c": [
+        "911:1072:201",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Width 🐍"
+    }
+  },
+  "911:1072:210": {
+    "inputs": {
+      "any_02": [
+        "911:1072:212",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "911:1072:201": {
+    "inputs": {
+      "image": [
+        "959",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "获取图像尺寸"
+    }
+  },
+  "911:1072:211": {
+    "inputs": {
+      "any_02": [
+        "911:1072:213",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "911:457": {
+    "inputs": {
+      "value": 16
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "帧率"
+    }
+  },
+  "911:458": {
+    "inputs": {
+      "value": 19
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "CRF"
+    }
+  },
+  "911:1073": {
+    "inputs": {
+      "expression": "(round((a * b) / 8) * 8) +1",
+      "a": [
+        "911:1075",
+        0
+      ],
+      "b": [
+        "911:457",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "帧数逻辑 🐍"
+    }
+  },
+  "911:1075": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "秒数"
+    }
+  },
+  "911:915": {
+    "inputs": {
+      "seed": 273868428039537
+    },
+    "class_type": "easy seed",
+    "_meta": {
+      "title": "随机种"
+    }
+  },
+  "911:914": {
+    "inputs": {
+      "steps_total": 4,
+      "refiner_step": 2,
+      "cfg": 1,
+      "sampler_name": "uni_pc_bh2",
+      "scheduler": "beta"
+    },
+    "class_type": "KSampler Config (rgthree)",
+    "_meta": {
+      "title": "采样"
+    }
+  },
+  "911:1033": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  }
+}
