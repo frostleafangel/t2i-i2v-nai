@@ -10,6 +10,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env.server') });
 
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const session = require('express-session');
+const { startCleanupScheduler } = require('./services/cleanupService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -104,6 +105,10 @@ const novelaiRoutes = require('./routes/novelai');
 app.use('/api/novelai', novelaiRoutes);
 const vibeRoutes = require('./routes/vibe');
 app.use('/api/vibe', vibeRoutes);
+const tasksRoutes = require('./routes/tasks');
+app.use('/api/tasks', tasksRoutes);
+const analyticsRoutes = require('./routes/analytics');
+app.use('/api/analytics', analyticsRoutes);
 
 // Serve uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -230,4 +235,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Production Server running on port ${PORT}`);
   console.log(`📡 Proxying /comfyui to ${COMFY_URL}`);
   console.log(`📡 Proxying /comfyui-standard to ${COMFY_URL_STANDARD}`);
+
+  // 启动定时清理任务（清理 30 天前的 NovelAI 图片）
+  startCleanupScheduler();
 });

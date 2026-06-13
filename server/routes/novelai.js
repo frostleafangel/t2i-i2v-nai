@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const novelaiService = require('../services/novelaiService');
 const novelaiQueue = require('../services/novelaiQueue');
+const { generationLogOps } = require('../database');
 
 // Middleware to check authentication with detailed logging
 const requireAuth = (req, res, next) => {
@@ -39,6 +40,7 @@ router.get('/queue-status', requireAuth, (req, res) => {
 
 router.post('/generate', requireAuth, async (req, res) => {
     const userId = req.session.userId;
+    const startTime = Date.now();
 
     try {
         const apiKey = process.env.NOVELAI_API_KEY;
@@ -98,11 +100,38 @@ router.post('/generate', requireAuth, async (req, res) => {
             reference_strength_multiple: req.body.reference_strength_multiple
         };
 
+        const queueAddTime = Date.now();
+
         // Add to queue and wait for processing
         const images = await novelaiQueue.enqueue(
             () => novelaiService.generateImage(params),
             userId
         );
+
+        const duration = Date.now() - startTime;
+        const queueWait = Date.now() - queueAddTime;
+
+        // 记录生成日志
+        const charPrompts = params.character_prompts;
+        generationLogOps.log({
+            user_id: userId,
+            source: 'novelai',
+            generation_type: 'novelai',
+            model: params.model,
+            width: params.width,
+            height: params.height,
+            steps: params.steps,
+            sampler: params.sampler,
+            scale: params.scale,
+            seed: images[0]?.seed || params.seed,
+            has_character_prompts: !!(charPrompts && charPrompts.length > 0),
+            character_count: Array.isArray(charPrompts) ? charPrompts.length : 0,
+            has_vibe_transfer: !!params.reference_image_multiple,
+            status: 'success',
+            duration_ms: duration,
+            queue_wait_ms: queueWait,
+            image_count: images.length
+        });
 
         // Return successful result with image URLs
         res.json({
@@ -111,6 +140,24 @@ router.post('/generate', requireAuth, async (req, res) => {
         });
 
     } catch (error) {
+        const duration = Date.now() - startTime;
+
+        // 记录失败日志
+        generationLogOps.log({
+            user_id: userId,
+            source: 'novelai',
+            generation_type: 'novelai',
+            model: req.body.model || 'nai-diffusion-3',
+            width: req.body.width || 832,
+            height: req.body.height || 1216,
+            steps: req.body.steps || 28,
+            sampler: req.body.sampler || 'k_euler',
+            scale: req.body.scale || req.body.cfg || 5,
+            status: 'failed',
+            error_message: error.message,
+            duration_ms: duration
+        });
+
         console.error('NovelAI Generate Error:', error);
         res.status(500).json({
             error: error.message || 'NovelAI generation failed'

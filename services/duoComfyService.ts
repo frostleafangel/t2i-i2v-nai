@@ -1,6 +1,7 @@
 
 import { COMFY_API_URL_STANDARD } from "../constants";
 import { DUO_WORKFLOW_TEMPLATE, SPLIT_DIRECTION_MAP } from "./constants_duo";
+import { comfyFetch, comfyPost, comfyUpload } from "./comfyFetch";
 import {
     DuoGenerationSettings,
     ComfyWorkflow,
@@ -25,16 +26,21 @@ const cleanPrompt = (text: string): string => {
 // 构建 LoRA 数据 JSON
 // ZmlPowerLoraLoader expects "lora_loader_data" as a JSON string with "entries" array.
 const buildLoraData = (loras: LoraConfig[]): string => {
-    const entries = loras.map((lora, index) => ({
-        id: `lora${index + 1}`,
-        item_type: "lora",
-        display_name: "",
-        custom_text: "",
-        lora_name: lora.name,
-        weight: lora.strength,
-        enabled: true,
-        parent_id: null
-    }));
+    const entries = loras.map((lora, index) => {
+        // 如果 LORA 名称不包含路径分隔符，则添加 text2img/ 前缀
+        // （显示时去掉了前缀，发送时需要加回来）
+        const loraPath = lora.name.includes('/') ? lora.name : `text2img/${lora.name}`;
+        return {
+            id: `lora${index + 1}`,
+            item_type: "lora",
+            display_name: "",
+            custom_text: "",
+            lora_name: loraPath,
+            weight: lora.strength,
+            enabled: true,
+            parent_id: null
+        };
+    });
 
     // 不再添加 "None" 条目 - 空数组可以正常工作
     // 添加 "None" 条目会导致 DenseDiffusion 的 Tensor 维度不匹配错误
@@ -74,10 +80,7 @@ const uploadMaskImage = async (base64Data: string): Promise<string> => {
     formData.append('image', blob, fileName);
     formData.append('overwrite', 'true');
 
-    const response = await fetch(`${COMFY_API_URL_STANDARD}/upload/image`, {
-        method: 'POST',
-        body: formData
-    });
+    const response = await comfyUpload(`${COMFY_API_URL_STANDARD}/upload/image`, formData);
 
     if (!response.ok) {
         throw new Error(`Failed to upload mask image: ${response.status}`);
@@ -300,13 +303,7 @@ export const queueDuoGeneration = async (
     console.log("Workflow payload:", JSON.stringify(payload, null, 2));
     console.log("=== END DEBUG ===");
 
-    const response = await fetch(`${COMFY_API_URL_STANDARD}/prompt`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-    });
+    const response = await comfyPost(`${COMFY_API_URL_STANDARD}/prompt`, payload);
 
     if (!response.ok) {
         throw new Error(`Failed to queue generation: ${response.statusText}`);
@@ -326,7 +323,7 @@ export const checkDuoGenerationStatus = async (
     isUpscaled?: boolean;
 }> => {
     try {
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
         if (response.ok) {
             const historyData: HistoryResponse = await response.json();
             const history = historyData[promptId];
@@ -366,7 +363,7 @@ export const checkDuoGenerationStatus = async (
         }
 
         // Check queue if not found in history
-        const queueResponse = await fetch(`${COMFY_API_URL_STANDARD}/queue`);
+        const queueResponse = await comfyFetch(`${COMFY_API_URL_STANDARD}/queue`);
         if (queueResponse.ok) {
             const queueData = await queueResponse.json();
             const pendingParams = queueData.queue_pending;

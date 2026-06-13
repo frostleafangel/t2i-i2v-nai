@@ -2,13 +2,13 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     Home, Sparkles, Users, Image as GalleryIcon, Palette,
-    Settings, History, Wifi, WifiOff, AlertTriangle, User, LogOut
+    Settings, History, Wifi, WifiOff, AlertTriangle, User, LogOut, Video, BarChart2
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AppNavigationProps {
     title: string;
-    mode: 'standard' | 'novelai' | 'duo';
+    mode: 'standard' | 'novelai' | 'duo' | 'video';
     user?: any;
     onLogout: () => void;
 
@@ -99,7 +99,8 @@ const AppNavigation: React.FC<AppNavigationProps> = ({
                     <h1 className={`font-bold text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r 
                         ${mode === 'novelai' ? 'from-green-400 to-blue-500' :
                             mode === 'duo' ? 'from-pink-400 to-purple-500' :
-                                'from-blue-400 to-purple-500'}`}>
+                                mode === 'video' ? 'from-orange-400 to-red-500' :
+                                    'from-blue-400 to-purple-500'}`}>
                         {title}
                     </h1>
                 </div>
@@ -127,6 +128,16 @@ const AppNavigation: React.FC<AppNavigationProps> = ({
                     <GalleryIcon size={20} />
                 </Link>
 
+                {user?.username === 'frostleaf' && (
+                    <Link
+                        to="/analytics"
+                        className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-white/10 rounded-lg transition-colors"
+                        title="数据分析看板"
+                    >
+                        <BarChart2 size={20} />
+                    </Link>
+                )}
+
                 {/* Vertical Divider */}
                 <div className="w-px h-6 bg-white/10 mx-1 hidden sm:block"></div>
 
@@ -149,6 +160,13 @@ const AppNavigation: React.FC<AppNavigationProps> = ({
                     <Link to="/duo" className="p-2 text-purple-400 hover:text-purple-300 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1" title="切换到双人模式">
                         <Users size={18} />
                         <span className="text-xs font-bold hidden xl:inline">DUO</span>
+                    </Link>
+                )}
+
+                {mode !== 'video' && (
+                    <Link to="/video" className="p-2 text-orange-400 hover:text-orange-300 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1" title="切换到图生视频">
+                        <Video size={18} />
+                        <span className="text-xs font-bold hidden xl:inline">I2V</span>
                     </Link>
                 )}
 

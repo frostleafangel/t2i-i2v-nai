@@ -335,3 +335,35 @@ export interface NovelAIGenerationSettings {
   // Vibe Transfer
   vibeReferences: VibeReference[];
 }
+
+// Video Generation Types (图生视频)
+export interface VideoGenerationSettings {
+  positivePrompt: string;
+  negativePrompt: string;
+  duration: number;        // 秒数 (1-8)
+  frameRate: number;       // 帧率 (16 或 24)
+  seed: number;            // 随机种子 (-1 为随机)
+  steps: number;           // 采样步数 (2-8)
+  cfg: number;             // CFG 值 (1-3)
+  crf: number;             // 视频质量 CRF (10-40, 越小质量越高)
+  refinerStep: number;     // 精炼步数
+  shiftHigh: number;       // Sigma 偏移 (高噪声)
+  shiftLow: number;        // Sigma 偏移 (低噪声)
+  samplerName: string;
+  scheduler: string;
+  loras?: LoraConfig[];    // LORA（同时应用到HIGH和LOW模型）
+}
+
+export interface GeneratedVideo {
+  id: string;
+  url: string;
+  prompt: string;
+  negativePrompt?: string;
+  timestamp: number;
+  duration: number;        // 视频时长（秒）
+  frameRate: number;
+  thumbnailUrl?: string;   // 视频缩略图
+  firstFrameUrl?: string;  // 首帧图片 URL
+  lastFrameUrl?: string;   // 尾帧图片 URL（用于接续生成）
+  isShared?: boolean;      // 是否已分享到画廊
+}

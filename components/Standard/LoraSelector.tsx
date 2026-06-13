@@ -33,7 +33,7 @@ const LoraSelector: React.FC<Props> = ({ availableLoras, selectedLoras, onChange
 
     const handleAdd = (loraName: string) => {
         if (selectedLoras.some(l => l.name === loraName)) return;
-        if (selectedLoras.length >= 4) return;
+        if (selectedLoras.length >= 8) return;
 
         onChange([...selectedLoras, { name: loraName, strength: 1.0 }]);
         setIsAdding(false);
@@ -95,10 +95,10 @@ const LoraSelector: React.FC<Props> = ({ availableLoras, selectedLoras, onChange
             <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-text-secondary flex items-center gap-2">
                     <Layers size={14} />
-                    {t.standardMode.settingsPanel.loras} ({selectedLoras.length}/4)
+                    {t.standardMode.settingsPanel.loras} ({selectedLoras.length}/8)
                 </label>
 
-                {selectedLoras.length < 4 && (
+                {selectedLoras.length < 8 && (
                     <div className="relative lora-add-container">
                         <button
                             className="text-xs flex items-center gap-1 px-2 py-1 rounded bg-surface hover:bg-white/10 text-primary transition-colors border border-primary/30"

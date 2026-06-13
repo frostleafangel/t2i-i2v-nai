@@ -7,11 +7,13 @@ import './src/index.css';
 import StandardApp from './StandardApp';
 import NovelAIApp from './NovelAIApp';
 import DuoApp from './DuoApp';
+import VideoApp from './VideoApp';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import GalleryPage from './pages/GalleryPage';
 import FavoritesPage from './pages/FavoritesPage';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import { Loader2 } from 'lucide-react';
 
 // 路由保护组件
@@ -65,6 +67,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/gallery" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
       <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
       <Route path="/novelai" element={<ProtectedRoute><NovelAIApp /></ProtectedRoute>} />
+      <Route path="/video" element={<ProtectedRoute><VideoApp /></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><AnalyticsDashboard /></ProtectedRoute>} />
 
       {/* Newbie 模式暂时隐藏 */}
       {/* <Route path="/newbie" element={<ProtectedRoute><App /></ProtectedRoute>} /> */}

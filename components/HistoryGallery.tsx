@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GeneratedImage } from '../types';
-import { Download, Clock, Maximize2, Loader2, Check, Upload } from 'lucide-react';
+import { Download, Clock, Maximize2, Loader2, Check, Upload, Video, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
@@ -10,9 +10,12 @@ interface Props {
   onUpscale?: (img: GeneratedImage) => void;
   upscalingId?: string | null; // 正在放大的图片 ID
   onUploadToGallery?: (img: GeneratedImage) => Promise<boolean>; // 上传到画廊
+  onSendToVideo?: (img: GeneratedImage) => void; // 发送到视频模式
+  onClearHistory?: () => void; // 清空历史记录
+  onDelete?: (img: GeneratedImage) => void; // 删除单个项目
 }
 
-const HistoryGallery: React.FC<Props> = ({ history, onSelect, selectedId, onUpscale, upscalingId, onUploadToGallery }) => {
+const HistoryGallery: React.FC<Props> = ({ history, onSelect, selectedId, onUpscale, upscalingId, onUploadToGallery, onSendToVideo, onClearHistory, onDelete }) => {
   const { t } = useLanguage();
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadedIds, setUploadedIds] = useState<Set<string>>(new Set());
@@ -83,8 +86,39 @@ const HistoryGallery: React.FC<Props> = ({ history, onSelect, selectedId, onUpsc
             </div>
           )}
 
+          {/* 右上角删除按钮 */}
+          {onDelete && (
+            <button
+              className={`absolute top-1 p-1.5 bg-red-500/30 hover:bg-red-500/50 rounded text-red-400 backdrop-blur-md opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity ${img.isUpscaled ? 'right-16' : 'right-1'
+                }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm('确定要删除这张图片吗？')) {
+                  onDelete(img);
+                }
+              }}
+              title="删除"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
             <div className="flex gap-1">
+              {/* 发送到视频模式按钮 */}
+              {onSendToVideo && (
+                <button
+                  className="p-1.5 bg-cyan-500/30 hover:bg-cyan-500/50 rounded text-cyan-400 backdrop-blur-md"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSendToVideo(img);
+                  }}
+                  title="发送到视频模式"
+                >
+                  <Video size={12} />
+                </button>
+              )}
+
               {/* 上传到画廊按钮 */}
               {onUploadToGallery && !uploadedIds.has(img.id) && (
                 <button
@@ -156,7 +190,7 @@ const HistoryGallery: React.FC<Props> = ({ history, onSelect, selectedId, onUpsc
           </div>
         </div>
       ))}
-      {/* 保留期限提示 */}
+      {/* 底部保留期限提示 */}
       <div className="text-center py-2 border-t border-white/5 mt-2">
         <p className="text-[10px] text-gray-500">{t.history.retentionNotice}</p>
       </div>

@@ -266,9 +266,30 @@ const App: React.FC = () => {
   }, []);
 
   // 恢复未完成的任务（等服务器在线后开始轮询）
+  // 如果服务器离线且任务已超过 5 分钟，自动清理以允许用户重新生成
   useEffect(() => {
     const pendingTask = localStorage.getItem('newbie_pending_task');
-    if (!pendingTask || serverStatus !== 'online') return;
+    if (!pendingTask) return;
+
+    // 服务器离线时的处理
+    if (serverStatus === 'offline' || serverStatus === 'cors_error') {
+      try {
+        const task = JSON.parse(pendingTask);
+        // 如果任务已经超过 5 分钟且服务器离线，清理任务让用户可以重新生成
+        if (Date.now() - task.timestamp > 5 * 60 * 1000) {
+          localStorage.removeItem('newbie_pending_task');
+          setStatus(GenerationStatus.IDLE);
+          setErrorMsg(t.status.connectionLost || '连接丢失，请重新生成');
+        }
+      } catch (e) {
+        localStorage.removeItem('newbie_pending_task');
+        setStatus(GenerationStatus.IDLE);
+      }
+      return;
+    }
+
+    // 服务器正在检查连接中，不做任何操作
+    if (serverStatus !== 'online') return;
 
     try {
       const task = JSON.parse(pendingTask);

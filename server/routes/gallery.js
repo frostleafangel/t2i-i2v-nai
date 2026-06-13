@@ -174,23 +174,36 @@ router.post('/upload-url', requireAuth, async (req, res) => {
     }
 
     try {
-        // 处理相对 URL - 转换为绝对 URL
-        if (imageUrl.startsWith('/')) {
-            // 从请求头获取 host，构建绝对 URL
-            const protocol = req.headers['x-forwarded-proto'] || 'https';
-            const host = req.headers['x-forwarded-host'] || req.headers.host || 'newbie.rimeleaf.com';
-            imageUrl = `${protocol}://${host}${imageUrl}`;
+        let buffer;
+
+        // 检查是否是 base64 数据 URL
+        if (imageUrl.startsWith('data:')) {
+            // 解析 base64 数据
+            const matches = imageUrl.match(/^data:image\/([a-zA-Z+]+);base64,(.+)$/);
+            if (!matches) {
+                return res.status(400).json({ error: '无效的 base64 图片数据' });
+            }
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            // 处理相对 URL - 转换为绝对 URL
+            if (imageUrl.startsWith('/')) {
+                // 从请求头获取 host，构建绝对 URL
+                const protocol = req.headers['x-forwarded-proto'] || 'https';
+                const host = req.headers['x-forwarded-host'] || req.headers.host || 'newbie.rimeleaf.com';
+                imageUrl = `${protocol}://${host}${imageUrl}`;
+            }
+
+            // 下载图片
+            const fetch = require('node-fetch');
+            const response = await fetch(imageUrl);
+
+            if (!response.ok) {
+                return res.status(400).json({ error: '无法获取图片' });
+            }
+
+            buffer = await response.buffer();
         }
 
-        // 下载图片
-        const fetch = require('node-fetch');
-        const response = await fetch(imageUrl);
-
-        if (!response.ok) {
-            return res.status(400).json({ error: '无法获取图片' });
-        }
-
-        const buffer = await response.buffer();
         const filename = `${uuidv4()}.png`;
         const filepath = path.join(uploadDir, filename);
 

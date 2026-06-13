@@ -93,6 +93,58 @@ function initDatabase() {
     )
   `);
 
+  // ComfyUI 任务管理表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS comfy_tasks (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      params TEXT,
+      result_url TEXT,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 创建索引加速查询
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_comfy_tasks_user_status ON comfy_tasks(user_id, status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_comfy_tasks_status ON comfy_tasks(status)`);
+
+  // 生图日志表（数据分析用）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS generation_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      source TEXT NOT NULL,
+      generation_type TEXT,
+      model TEXT,
+      width INTEGER,
+      height INTEGER,
+      steps INTEGER,
+      sampler TEXT,
+      scale REAL,
+      seed INTEGER,
+      has_character_prompts INTEGER DEFAULT 0,
+      character_count INTEGER DEFAULT 0,
+      has_vibe_transfer INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'success',
+      error_message TEXT,
+      duration_ms INTEGER,
+      queue_wait_ms INTEGER,
+      image_count INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // generation_logs 索引
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gen_logs_user ON generation_logs(user_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gen_logs_created ON generation_logs(created_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gen_logs_source ON generation_logs(source)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_gen_logs_model ON generation_logs(model)`);
+
   console.log('📦 Database initialized successfully');
 }
 
@@ -449,11 +501,11 @@ const historyOps = {
     return stmt.run(historyId, userId).changes > 0;
   },
 
-  // 清理7天前的历史记录
+  // 清理3天前的历史记录
   cleanupOldRecords: () => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     const stmt = db.prepare('DELETE FROM user_history WHERE created_at < ?');
-    const result = stmt.run(sevenDaysAgo);
+    const result = stmt.run(threeDaysAgo);
     return result.changes;
   }
 };
@@ -546,11 +598,409 @@ const styleOps = {
   }
 };
 
+// ComfyUI 任务管理操作
+const taskOps = {
+  // 创建任务
+  create: (id, userId, type, params) => {
+    const stmt = db.prepare(`
+      INSERT INTO comfy_tasks (id, user_id, type, status, params, created_at, updated_at)
+      VALUES (?, ?, ?, 'pending', ?, datetime('now'), datetime('now'))
+    `);
+    stmt.run(id, userId, type, JSON.stringify(params));
+    return id;
+  },
+
+  // 获取任务
+  getById: (id) => {
+    const stmt = db.prepare('SELECT * FROM comfy_tasks WHERE id = ?');
+    const row = stmt.get(id);
+    if (row && row.params) {
+      try {
+        row.params = JSON.parse(row.params);
+      } catch (e) {
+        console.warn('Failed to parse task params:', e);
+      }
+    }
+    return row;
+  },
+
+  // 获取用户的活动任务（包含进行中和最近24小时内完成的任务）
+  getActiveByUser: (userId) => {
+    const stmt = db.prepare(`
+      SELECT * FROM comfy_tasks 
+      WHERE user_id = ? AND (
+        status IN ('pending', 'running') OR 
+        (status = 'completed' AND updated_at > datetime('now', '-24 hours'))
+      )
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(userId).map(row => {
+      if (row.params) {
+        try {
+          row.params = JSON.parse(row.params);
+        } catch (e) { }
+      }
+      return row;
+    });
+  },
+
+  // 获取用户的最近任务
+  getRecentByUser: (userId, limit = 20) => {
+    const stmt = db.prepare(`
+      SELECT * FROM comfy_tasks 
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `);
+    return stmt.all(userId, limit).map(row => {
+      if (row.params) {
+        try {
+          row.params = JSON.parse(row.params);
+        } catch (e) { }
+      }
+      return row;
+    });
+  },
+
+  // 更新状态
+  updateStatus: (id, status, resultUrl = null, errorMessage = null) => {
+    const stmt = db.prepare(`
+      UPDATE comfy_tasks 
+      SET status = ?, result_url = ?, error_message = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    return stmt.run(status, resultUrl, errorMessage, id).changes > 0;
+  },
+
+  // 获取所有待同步的任务
+  getPendingSync: () => {
+    const stmt = db.prepare(`
+      SELECT * FROM comfy_tasks 
+      WHERE status IN ('pending', 'running')
+      ORDER BY created_at ASC
+    `);
+    return stmt.all().map(row => {
+      if (row.params) {
+        try {
+          row.params = JSON.parse(row.params);
+        } catch (e) { }
+      }
+      return row;
+    });
+  },
+
+  // 增加重试次数
+  incrementRetry: (id) => {
+    const stmt = db.prepare(`
+      UPDATE comfy_tasks 
+      SET retry_count = retry_count + 1, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    return stmt.run(id).changes > 0;
+  },
+
+  // 取消任务
+  cancel: (id, userId) => {
+    const stmt = db.prepare(`
+      UPDATE comfy_tasks 
+      SET status = 'cancelled', updated_at = datetime('now')
+      WHERE id = ? AND user_id = ? AND status IN ('pending', 'running')
+    `);
+    return stmt.run(id, userId).changes > 0;
+  },
+
+  // 清理旧任务（保留 7 天）
+  cleanupOldTasks: () => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const stmt = db.prepare(`
+      DELETE FROM comfy_tasks 
+      WHERE created_at < ? AND status IN ('completed', 'failed', 'cancelled')
+    `);
+    return stmt.run(sevenDaysAgo).changes;
+  }
+};
+
+// 生图日志操作
+const generationLogOps = {
+  // 写入一条生成记录
+  log: (data) => {
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO generation_logs (
+          user_id, source, generation_type, model,
+          width, height, steps, sampler, scale, seed,
+          has_character_prompts, character_count, has_vibe_transfer,
+          status, error_message, duration_ms, queue_wait_ms, loras, image_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        data.user_id,
+        data.source || 'unknown',
+        data.generation_type || null,
+        data.model || null,
+        data.width || null,
+        data.height || null,
+        data.steps || null,
+        data.sampler || null,
+        data.scale || null,
+        data.seed || null,
+        data.has_character_prompts ? 1 : 0,
+        data.character_count || 0,
+        data.has_vibe_transfer ? 1 : 0,
+        data.status || 'success',
+        data.error_message || null,
+        data.duration_ms || null,
+        data.queue_wait_ms || null,
+        data.loras || null,
+        data.image_count || 1
+      );
+    } catch (err) {
+      // 日志记录失败不应影响主流程
+      console.error('[GenLog] Failed to log generation:', err.message);
+    }
+  },
+
+  // 总览统计
+  getOverview: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
+        ROUND(AVG(CASE WHEN status = 'success' THEN duration_ms END)) as avg_duration_ms,
+        SUM(image_count) as total_images,
+        COUNT(DISTINCT user_id) as active_users
+      FROM generation_logs
+      WHERE created_at >= ?
+    `;
+    if (source !== 'all') {
+      query += ' AND source = ?';
+      return db.prepare(query).get(since, source);
+    }
+    return db.prepare(query).get(since);
+  },
+
+  // 今日统计
+  getTodayStats: (source = 'all') => {
+    let query = `
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+        COUNT(DISTINCT user_id) as active_users
+      FROM generation_logs
+      WHERE date(created_at, 'localtime') = date('now', 'localtime')
+    `;
+    if (source !== 'all') {
+      query += ' AND source = ?';
+      return db.prepare(query).get(source);
+    }
+    return db.prepare(query).get();
+  },
+
+  // 按小时分布
+  getHourlyStats: (days = 7, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        CAST(strftime('%H', created_at, 'localtime') AS INTEGER) as hour,
+        COUNT(*) as count
+      FROM generation_logs
+      WHERE created_at >= ?
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += ' GROUP BY hour ORDER BY hour';
+    
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 按小时计算排队耗时
+  getHourlyQueueStats: (days = 7, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        CAST(strftime('%H', created_at, 'localtime') AS INTEGER) as hour,
+        ROUND(AVG(queue_wait_ms)) as avg_queue_ms
+      FROM generation_logs
+      WHERE created_at >= ? AND queue_wait_ms IS NOT NULL
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += ' GROUP BY hour ORDER BY hour';
+    
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 获取最常见的错误类型统计
+  getErrorStats: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        error_message,
+        COUNT(*) as count
+      FROM generation_logs
+      WHERE created_at >= ? AND status = 'failed' AND error_message IS NOT NULL
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += ' GROUP BY error_message ORDER BY count DESC LIMIT 10';
+    
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 获取最受欢迎的 LORA 排行
+  getLoraStats: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    // 使用 SQLite json_each 拉平嵌套数组
+    let query = `
+      SELECT
+        json_each.value as lora_name,
+        COUNT(*) as count
+      FROM generation_logs, json_each(generation_logs.loras)
+      WHERE generation_logs.created_at >= ? AND generation_logs.status = 'success' AND generation_logs.loras IS NOT NULL
+    `;
+    if (source !== 'all') query += ' AND generation_logs.source = ?';
+    query += ' GROUP BY json_each.value ORDER BY count DESC LIMIT 15';
+    
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 按日统计趋势
+  getDailyStats: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        date(created_at, 'localtime') as date,
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+        COUNT(DISTINCT user_id) as active_users
+      FROM generation_logs
+      WHERE created_at >= ?
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += " GROUP BY date(created_at, 'localtime') ORDER BY date";
+
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 模型使用排行
+  getModelStats: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        model,
+        COUNT(*) as count,
+        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+        ROUND(AVG(CASE WHEN status = 'success' THEN duration_ms END)) as avg_duration_ms
+      FROM generation_logs
+      WHERE created_at >= ? AND model IS NOT NULL
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += ' GROUP BY model ORDER BY count DESC';
+
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 用户使用排行
+  getUserStats: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        g.user_id,
+        u.username,
+        COUNT(*) as count,
+        SUM(CASE WHEN g.status = 'success' THEN 1 ELSE 0 END) as success_count,
+        SUM(g.image_count) as total_images
+      FROM generation_logs g
+      LEFT JOIN users u ON g.user_id = u.id
+      WHERE g.created_at >= ?
+    `;
+    if (source !== 'all') query += ' AND g.source = ?';
+    query += ' GROUP BY g.user_id ORDER BY count DESC';
+
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 来源分布
+  getSourceStats: (days = 30) => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    return db.prepare(`
+      SELECT
+        source,
+        COUNT(*) as count
+      FROM generation_logs
+      WHERE created_at >= ?
+      GROUP BY source
+      ORDER BY count DESC
+    `).all(since);
+  },
+
+  // 分辨率分布
+  getResolutionStats: (days = 30) => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    return db.prepare(`
+      SELECT
+        width || 'x' || height as resolution,
+        COUNT(*) as count
+      FROM generation_logs
+      WHERE created_at >= ? AND width IS NOT NULL AND height IS NOT NULL
+      GROUP BY resolution
+      ORDER BY count DESC
+      LIMIT 20
+    `).all(since);
+  },
+
+  // 最近日志
+  getRecentLogs: (limit = 50) => {
+    return db.prepare(`
+      SELECT
+        g.*,
+        u.username
+      FROM generation_logs g
+      LEFT JOIN users u ON g.user_id = u.id
+      ORDER BY g.created_at DESC
+      LIMIT ?
+    `).all(limit);
+  },
+
+  // 核心用户活动时段洞察
+  getActivityHeatmap: (days = 30, source = 'all') => {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    let query = `
+      SELECT
+        CAST(strftime('%w', created_at, 'localtime') AS INTEGER) as weekday,
+        CAST(strftime('%H', created_at, 'localtime') AS INTEGER) as hour,
+        COUNT(*) as count
+      FROM generation_logs
+      WHERE created_at >= ?
+    `;
+    if (source !== 'all') query += ' AND source = ?';
+    query += ' GROUP BY weekday, hour ORDER BY weekday, hour';
+    
+    if (source !== 'all') return db.prepare(query).all(since, source);
+    return db.prepare(query).all(since);
+  },
+
+  // 清理 90 天前的旧记录
+  cleanup: () => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const stmt = db.prepare('DELETE FROM generation_logs WHERE created_at < ?');
+    return stmt.run(ninetyDaysAgo).changes;
+  }
+};
+
 module.exports = {
   db,
   userOps,
   inviteOps,
   galleryOps,
   historyOps,
-  styleOps
+  styleOps,
+  taskOps,
+  generationLogOps
 };

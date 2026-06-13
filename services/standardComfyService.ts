@@ -1,5 +1,6 @@
 import { COMFY_API_URL_STANDARD } from "../constants";
 import { STANDARD_WORKFLOW_TEMPLATE } from "./constants_standard";
+import { comfyFetch, comfyPost, comfyUpload } from "./comfyFetch";
 import {
     StandardGenerationSettings,
     ComfyWorkflow,
@@ -20,7 +21,7 @@ export const fetchAvailableModels = async (): Promise<string[]> => {
     if (cachedModels) return cachedModels;
     try {
         console.log(`[Standard] Fetching models from: ${COMFY_API_URL_STANDARD}/object_info/CheckpointLoaderSimple`);
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/object_info/CheckpointLoaderSimple`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/object_info/CheckpointLoaderSimple`);
         if (!response.ok) {
             console.error(`[Standard] Failed to fetch models: ${response.status} ${response.statusText}`);
             throw new Error('Failed to fetch models');
@@ -38,7 +39,13 @@ export const fetchAvailableModels = async (): Promise<string[]> => {
             }
         }
 
-        console.log('[Standard] Parsed models:', models);
+        // 过滤掉 I2V 专用模型（文生图模式不需要这些模型）
+        const I2V_MODEL_KEYWORDS = ['DasiwaWAN22I2V', 'I2V'];
+        models = models.filter(model =>
+            !I2V_MODEL_KEYWORDS.some(keyword => model.includes(keyword))
+        );
+
+        console.log('[Standard] Parsed models (filtered):', models);
         cachedModels = models;
         return models;
     } catch (err) {
@@ -52,7 +59,7 @@ export const fetchAvailableLoras = async (): Promise<string[]> => {
     try {
         // Use standard LoraLoader to get the list, it's more reliable
         console.log(`[Standard] Fetching loras from: ${COMFY_API_URL_STANDARD}/object_info/LoraLoader`);
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/object_info/LoraLoader`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/object_info/LoraLoader`);
         if (!response.ok) {
             console.error(`[Standard] Failed to fetch loras: ${response.status} ${response.statusText}`);
             throw new Error('Failed to fetch loras');
@@ -69,7 +76,13 @@ export const fetchAvailableLoras = async (): Promise<string[]> => {
             }
         }
 
-        console.log('[Standard] Parsed loras:', loras);
+        // 只保留 text2img 目录下的 LORA（文生图模式专用）
+        // 并去掉 text2img/ 前缀，只显示文件名
+        loras = loras
+            .filter(lora => lora.startsWith('text2img/'))
+            .map(lora => lora.replace('text2img/', ''));
+
+        console.log('[Standard] Parsed loras (filtered, prefix removed):', loras);
         cachedLoras = loras;
         return loras;
     } catch (err) {
@@ -86,7 +99,7 @@ export const fetchAvailableDetectors = async (): Promise<string[]> => {
     if (cachedDetectors) return cachedDetectors;
     try {
         console.log(`[Standard] Fetching detectors from: ${COMFY_API_URL_STANDARD}/object_info/UltralyticsDetectorProvider`);
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/object_info/UltralyticsDetectorProvider`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/object_info/UltralyticsDetectorProvider`);
         if (!response.ok) {
             console.error(`[Standard] Failed to fetch detectors: ${response.status} ${response.statusText}`);
             throw new Error('Failed to fetch detectors');
@@ -134,9 +147,12 @@ export const queueStandardGeneration = async (
         }
 
         // Fill with user selections
+        // 注意：显示时去掉了 text2img/ 前缀，发送时需要加回来
         settings.loras.slice(0, 4).forEach((lora, index) => {
             const i = index + 1;
-            workflow["7"].inputs[`lora_0${i}`] = lora.name;
+            // 如果 LORA 名称不包含路径分隔符，则添加 text2img/ 前缀
+            const loraPath = lora.name.includes('/') ? lora.name : `text2img/${lora.name}`;
+            workflow["7"].inputs[`lora_0${i}`] = loraPath;
             workflow["7"].inputs[`strength_0${i}`] = lora.strength;
         });
     }
@@ -286,11 +302,7 @@ export const queueStandardGeneration = async (
 
     // 7. Send to API
     try {
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/prompt`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: workflow }),
-        });
+        const response = await comfyPost(`${COMFY_API_URL_STANDARD}/prompt`, { prompt: workflow });
 
         if (!response.ok) {
             throw new Error(`ComfyUI Error: ${response.status} ${response.statusText}`);
@@ -306,7 +318,7 @@ export const queueStandardGeneration = async (
 
 export const checkStandardGenerationStatus = async (promptId: string): Promise<{ status: 'completed' | 'pending' | 'error' | 'not_found', imageUrl?: string, isUpscaled?: boolean }> => {
     try {
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
         if (!response.ok) return { status: 'error' };
 
         const data: HistoryResponse = await response.json();
@@ -359,7 +371,7 @@ export const checkStandardGenerationStatus = async (promptId: string): Promise<{
         }
 
         // Check queue
-        const queueResponse = await fetch(`${COMFY_API_URL_STANDARD}/queue`);
+        const queueResponse = await comfyFetch(`${COMFY_API_URL_STANDARD}/queue`);
         if (queueResponse.ok) {
             const queueData = await queueResponse.json();
             const running = queueData.queue_running || [];
@@ -397,10 +409,7 @@ export const uploadImageForUpscale = async (imageUrl: string): Promise<string> =
     formData.append('overwrite', 'true');
 
     // 4. 上传到 ComfyUI
-    const uploadResponse = await fetch(`${COMFY_API_URL_STANDARD}/upload/image`, {
-        method: 'POST',
-        body: formData
-    });
+    const uploadResponse = await comfyUpload(`${COMFY_API_URL_STANDARD}/upload/image`, formData);
 
     if (!uploadResponse.ok) {
         throw new Error(`Failed to upload image: ${uploadResponse.status}`);
@@ -563,11 +572,7 @@ export const queueStandardUpscale = async (
 
     console.log('[Standard Upscale] Queueing upscale workflow (1.25x + 1x):', workflow);
 
-    const response = await fetch(`${COMFY_API_URL_STANDARD}/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: workflow }),
-    });
+    const response = await comfyPost(`${COMFY_API_URL_STANDARD}/prompt`, { prompt: workflow });
 
     if (!response.ok) {
         throw new Error(`ComfyUI Upscale Error: ${response.status}`);
@@ -580,7 +585,7 @@ export const queueStandardUpscale = async (
 // 检查放大任务状态
 export const checkStandardUpscaleStatus = async (promptId: string): Promise<{ status: 'completed' | 'pending' | 'error' | 'not_found', imageUrl?: string }> => {
     try {
-        const response = await fetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
+        const response = await comfyFetch(`${COMFY_API_URL_STANDARD}/history/${promptId}`);
         if (!response.ok) return { status: 'not_found' };
 
         const data: HistoryResponse = await response.json();
@@ -605,7 +610,7 @@ export const checkStandardUpscaleStatus = async (promptId: string): Promise<{ st
         }
 
         // 检查队列
-        const queueResponse = await fetch(`${COMFY_API_URL_STANDARD}/queue`);
+        const queueResponse = await comfyFetch(`${COMFY_API_URL_STANDARD}/queue`);
         if (queueResponse.ok) {
             const queueData = await queueResponse.json();
             const running = queueData.queue_running || [];

@@ -7,7 +7,7 @@ import StyleManager from './components/Style/StyleManager';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Image as GalleryIcon, Sparkles, Loader2, Palette, Info, Clock, Menu, History, Zap, X, Home } from 'lucide-react';
+import { Image as GalleryIcon, Sparkles, Loader2, Palette, Info, Clock, Menu, History, Zap, X, Home, Trash2 } from 'lucide-react';
 import MobileDrawer from './components/MobileDrawer';
 import AppNavigation from './components/Common/AppNavigation';
 
@@ -504,6 +504,44 @@ const NovelAIApp: React.FC = () => {
         }
     }, [settings]);
 
+    // 清空历史记录
+    const handleClearHistory = useCallback(async () => {
+        setHistory([]);
+        setCurrentImage(null);
+        localStorage.removeItem('novelai_history_v2');
+        // 清空云端历史
+        try {
+            const existingHistory = await fetch('/api/history?source=novelai&limit=100', { credentials: 'include' });
+            if (existingHistory.ok) {
+                const data = await existingHistory.json();
+                for (const item of data.history || []) {
+                    await fetch(`/api/history/${item.id}`, { method: 'DELETE', credentials: 'include' });
+                }
+            }
+        } catch (e) {
+            console.warn('[NovelAI] Failed to clear cloud history:', e);
+        }
+    }, []);
+
+    // 删除单个历史项目
+    const handleDeleteHistoryItem = useCallback(async (img: GeneratedImage) => {
+        setHistory(prev => prev.filter(item => item.id !== img.id));
+        if (currentImage?.id === img.id) {
+            setCurrentImage(null);
+        }
+        // 更新本地存储
+        setHistory(prev => {
+            localStorage.setItem('novelai_history_v2', JSON.stringify(prev));
+            return prev;
+        });
+        // 删除云端记录
+        try {
+            await fetch(`/api/history/${img.id}`, { method: 'DELETE', credentials: 'include' });
+        } catch (e) {
+            console.warn('[NovelAI] Failed to delete from cloud:', e);
+        }
+    }, [currentImage]);
+
     return (
         <div className="min-h-screen bg-darker text-gray-100 font-sans selection:bg-primary/30">
             {/* Header */}
@@ -578,11 +616,24 @@ const NovelAIApp: React.FC = () => {
 
                 {/* Right Column - History Gallery (Desktop) */}
                 <div className="hidden lg:flex flex-col fixed top-16 right-0 bottom-0 w-[320px] bg-surface/30 border-l border-white/5 z-20">
-                    <div className="p-4 border-b border-white/5">
+                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
                         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                             <Clock size={16} />
-                            History
+                            历史记录
                         </h2>
+                        {history.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                        handleClearHistory();
+                                    }
+                                }}
+                                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                            >
+                                <Trash2 size={12} />
+                                清空
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex-1 overflow-hidden relative">
@@ -591,6 +642,12 @@ const NovelAIApp: React.FC = () => {
                             onSelect={handleApplyHistory}
                             selectedId={currentImage?.id}
                             onUploadToGallery={handleUploadToGallery}
+                            onSendToVideo={(img) => {
+                                sessionStorage.setItem('video_init_image', img.url);
+                                navigate('/video');
+                            }}
+                            onClearHistory={handleClearHistory}
+                            onDelete={handleDeleteHistoryItem}
                         />
                     </div>
                 </div>
@@ -664,8 +721,20 @@ const NovelAIApp: React.FC = () => {
             <MobileDrawer
                 isOpen={showMobileHistory}
                 onClose={() => setShowMobileHistory(false)}
-                title="History"
+                title="历史记录"
                 position="right"
+                headerAction={history.length > 0 && (
+                    <button
+                        onClick={() => {
+                            if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                handleClearHistory();
+                            }
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                )}
             >
                 <div className="h-full">
                     <HistoryGallery
@@ -676,6 +745,12 @@ const NovelAIApp: React.FC = () => {
                         }}
                         selectedId={currentImage?.id}
                         onUploadToGallery={handleUploadToGallery}
+                        onSendToVideo={(img) => {
+                            sessionStorage.setItem('video_init_image', img.url);
+                            navigate('/video');
+                        }}
+                        onClearHistory={handleClearHistory}
+                        onDelete={handleDeleteHistoryItem}
                     />
                 </div>
             </MobileDrawer>

@@ -37,6 +37,8 @@ const FavoritesPage: React.FC = () => {
             if (response.ok) {
                 const data = await response.json();
                 setImages(data.images);
+            } else if (response.status === 401) {
+                navigate('/login', { replace: true });
             }
         } catch (error) {
             console.error('Failed to fetch favorites:', error);
@@ -227,7 +229,7 @@ const FavoritesPage: React.FC = () => {
                     onClick={() => setSelectedImage(null)}
                 >
                     <div
-                        className="relative max-w-4xl w-full bg-surface rounded-2xl overflow-hidden shadow-2xl"
+                        className="relative max-w-4xl w-full bg-surface rounded-2xl overflow-hidden shadow-2xl h-[95vh] lg:h-[80vh] flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <button
@@ -237,55 +239,59 @@ const FavoritesPage: React.FC = () => {
                             <X size={20} />
                         </button>
 
-                        <div className="flex flex-col lg:flex-row">
-                            <div className="lg:flex-1 bg-black flex items-center justify-center">
+                        <div className="flex flex-col lg:flex-row h-full">
+                            <div className="flex-1 bg-black flex items-center justify-center overflow-hidden">
                                 <img
                                     src={selectedImage.imageUrl}
                                     alt={selectedImage.prompt}
-                                    className="max-w-full max-h-[60vh] lg:max-h-[80vh] object-contain"
+                                    className="max-w-full max-h-[60vh] lg:max-h-full object-contain"
                                 />
                             </div>
 
-                            <div className="lg:w-80 p-6 flex flex-col">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
-                                        <User size={16} className="text-primary" />
+                            <div className="h-[40%] lg:h-full lg:w-80 flex flex-col bg-surface border-l border-white/10">
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                                            <User size={16} className="text-primary" />
+                                        </div>
+                                        <span className="text-white font-medium">{selectedImage.author}</span>
                                     </div>
-                                    <span className="text-white font-medium">{selectedImage.author}</span>
+
+                                    <div className="mb-4">
+                                        <h3 className="text-gray-400 text-sm mb-2">提示词</h3>
+                                        <p className="text-white text-sm leading-relaxed break-words">{selectedImage.prompt}</p>
+                                    </div>
                                 </div>
 
-                                <div className="flex-1">
-                                    <h3 className="text-gray-400 text-sm mb-2">提示词</h3>
-                                    <p className="text-white text-sm leading-relaxed">{selectedImage.prompt}</p>
-                                </div>
+                                <div className="p-6 border-t border-white/10 bg-surface">
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={(e) => handleLike(selectedImage, e)}
+                                            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors ${selectedImage.is_liked
+                                                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                    : 'bg-white/5 text-gray-400 hover:text-red-400 border border-white/10'
+                                                }`}
+                                        >
+                                            <Heart size={18} fill={selectedImage.is_liked ? 'currentColor' : 'none'} />
+                                            <span>{selectedImage.likes_count}</span>
+                                        </button>
 
-                                <div className="flex items-center gap-3 mt-6 pt-6 border-t border-white/10">
-                                    <button
-                                        onClick={(e) => handleLike(selectedImage, e)}
-                                        className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors ${selectedImage.is_liked
-                                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                                : 'bg-white/5 text-gray-400 hover:text-red-400 border border-white/10'
-                                            }`}
-                                    >
-                                        <Heart size={18} fill={selectedImage.is_liked ? 'currentColor' : 'none'} />
-                                        <span>{selectedImage.likes_count}</span>
-                                    </button>
+                                        <button
+                                            onClick={(e) => handleUnfavorite(selectedImage, e)}
+                                            className="flex-1 py-2.5 rounded-xl bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center justify-center gap-2 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
+                                        >
+                                            <Bookmark size={18} fill="currentColor" />
+                                            <span>取消</span>
+                                        </button>
 
-                                    <button
-                                        onClick={(e) => handleUnfavorite(selectedImage, e)}
-                                        className="flex-1 py-2.5 rounded-xl bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center justify-center gap-2 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
-                                    >
-                                        <Bookmark size={18} fill="currentColor" />
-                                        <span>取消收藏</span>
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleSendToGenerator(selectedImage.prompt)}
-                                        className="flex-1 py-2.5 rounded-xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center gap-2 hover:bg-primary/30 transition-colors"
-                                    >
-                                        <Send size={18} />
-                                        <span>使用</span>
-                                    </button>
+                                        <button
+                                            onClick={() => handleSendToGenerator(selectedImage.prompt)}
+                                            className="flex-1 py-2.5 rounded-xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center gap-2 hover:bg-primary/30 transition-colors"
+                                        >
+                                            <Send size={18} />
+                                            <span>使用</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

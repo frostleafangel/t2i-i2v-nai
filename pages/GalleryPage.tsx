@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
     Heart, Bookmark, Send, X, ChevronLeft, ChevronRight,
     Loader2, ImageIcon, Home, BookmarkCheck, User, LogOut, Sparkles,
-    Trash2, RotateCcw, Archive
+    Trash2, RotateCcw, Archive, Video, Play
 } from 'lucide-react';
 
 interface GalleryImage {
@@ -42,6 +42,8 @@ const GalleryPage: React.FC = () => {
                 return { target: '/novelai', title: '返回 NovelAI' };
             case 'duo':
                 return { target: '/duo', title: '返回双人模式' };
+            case 'video':
+                return { target: '/video', title: '返回视频模式' };
             case 'standard':
             default:
                 return { target: '/', title: '返回生图' };
@@ -91,6 +93,9 @@ const GalleryPage: React.FC = () => {
                 const data = await response.json();
                 setImages(data.images);
                 setPagination(data.pagination);
+            } else if (response.status === 401) {
+                // 如果后端返回 401，说明登录已过期 (可能是服务器重启导致内存 session 丢失)
+                navigate('/login', { replace: true });
             }
         } catch (error) {
             console.error('Failed to fetch gallery:', error);
@@ -479,6 +484,13 @@ const GalleryPage: React.FC = () => {
                                         loading="lazy"
                                     />
 
+                                    {/* 视频类型标识 */}
+                                    {image.source === 'video' && (
+                                        <div className="absolute top-2 left-2 bg-black/70 rounded-full p-1.5">
+                                            <Play size={14} className="text-white fill-white" />
+                                        </div>
+                                    )}
+
                                     {/* 管理员删除按钮 - 右上角，移动端始终显示 */}
                                     {isAdmin && (
                                         <button
@@ -531,7 +543,7 @@ const GalleryPage: React.FC = () => {
 
                         {/* 分页 */}
                         {pagination && pagination.totalPages > 1 && (
-                            <div className="flex items-center justify-center gap-4 mt-8">
+                            <div className="flex items-center justify-center gap-2 sm:gap-4 mt-8 flex-wrap">
                                 <button
                                     onClick={() => fetchGallery(pagination.page - 1)}
                                     disabled={pagination.page <= 1}
@@ -549,6 +561,38 @@ const GalleryPage: React.FC = () => {
                                 >
                                     <ChevronRight size={20} />
                                 </button>
+                                {/* Quick Jump */}
+                                <div className="flex items-center gap-1 ml-2">
+                                    <span className="text-gray-500 text-sm hidden sm:inline">跳转:</span>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={pagination.totalPages}
+                                        placeholder="页"
+                                        className="w-14 px-2 py-1 bg-surface border border-white/10 rounded text-white text-sm text-center
+                                                   [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val)) {
+                                                // 限制在 1 到 totalPages 之间
+                                                if (val < 1) e.target.value = '1';
+                                                else if (val > pagination.totalPages) e.target.value = String(pagination.totalPages);
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = parseInt((e.target as HTMLInputElement).value);
+                                                if (val >= 1 && val <= pagination.totalPages) {
+                                                    fetchGallery(val);
+                                                    (e.target as HTMLInputElement).value = '';
+                                                }
+                                            }
+                                        }}
+                                        onBlur={(e) => {
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                </div>
                             </div>
                         )}
                     </>
@@ -562,7 +606,7 @@ const GalleryPage: React.FC = () => {
                     onClick={() => setSelectedImage(null)}
                 >
                     <div
-                        className="relative max-w-4xl w-full bg-surface rounded-2xl overflow-hidden shadow-2xl h-[95vh] lg:h-auto lg:max-h-[90vh] flex flex-col"
+                        className="relative max-w-4xl w-full bg-surface rounded-2xl overflow-hidden shadow-2xl h-[95vh] lg:h-[80vh] flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* 关闭按钮 */}
@@ -576,26 +620,60 @@ const GalleryPage: React.FC = () => {
                         {/* 移动端：垂直布局 60/40 分割 */}
                         {/* 桌面端：水平布局 */}
                         <div className="flex flex-col lg:flex-row h-full">
-                            {/* 图片区域 - 移动端60%，桌面端自适应 */}
+                            {/* 媒体区域 - 移动端60%，桌面端自适应 */}
                             <div
                                 className="h-[60%] lg:h-auto lg:flex-1 bg-black flex items-center justify-center cursor-pointer relative group"
-                                onClick={() => setShowFullImage(true)}
+                                onClick={() => selectedImage.source !== 'video' && setShowFullImage(true)}
                             >
-                                <img
-                                    src={selectedImage.imageUrl}
-                                    alt={selectedImage.prompt}
-                                    className="max-w-full max-h-full object-contain"
-                                />
-                                {/* 点击放大提示 */}
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-sm bg-black/50 px-3 py-1.5 rounded-full">
-                                        点击查看大图
-                                    </span>
-                                </div>
+                                {selectedImage.source === 'video' ? (
+                                    // 视频类型：显示视频播放器
+                                    (() => {
+                                        try {
+                                            const meta = JSON.parse(selectedImage.metadata || '{}');
+                                            const videoUrl = meta.videoUrl;
+                                            if (videoUrl) {
+                                                return (
+                                                    <video
+                                                        src={videoUrl}
+                                                        className="max-w-full max-h-full object-contain"
+                                                        controls
+                                                        autoPlay
+                                                        loop
+                                                        muted
+                                                        playsInline
+                                                    />
+                                                );
+                                            }
+                                        } catch (e) { }
+                                        // 如果没有 videoUrl，显示首帧图片
+                                        return (
+                                            <img
+                                                src={selectedImage.imageUrl}
+                                                alt={selectedImage.prompt}
+                                                className="max-w-full max-h-full object-contain"
+                                            />
+                                        );
+                                    })()
+                                ) : (
+                                    // 图片类型：显示图片
+                                    <>
+                                        <img
+                                            src={selectedImage.imageUrl}
+                                            alt={selectedImage.prompt}
+                                            className="max-w-full max-h-full object-contain"
+                                        />
+                                        {/* 点击放大提示 */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-sm bg-black/50 px-3 py-1.5 rounded-full">
+                                                点击查看大图
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* 信息区域 - 移动端40%，桌面端固定宽度 */}
-                            <div className="h-[40%] lg:h-auto lg:w-80 flex flex-col bg-surface">
+                            <div className="h-[40%] lg:h-full lg:w-80 flex flex-col bg-surface">
                                 <div className="flex-1 overflow-y-auto p-4 sm:p-5">
                                     {/* 作者信息 */}
                                     <div className="flex items-center gap-2 mb-3">
@@ -637,11 +715,11 @@ const GalleryPage: React.FC = () => {
                                                     );
                                                 }
                                             } catch (e) { }
-                                            return <p className="text-white text-sm leading-relaxed">{selectedImage.prompt}</p>;
+                                            return <p className="text-white text-sm leading-relaxed break-words">{selectedImage.prompt}</p>;
                                         })()}
 
                                         {selectedImage.source !== 'novelai' && (
-                                            <p className="text-white text-sm leading-relaxed">{selectedImage.prompt}</p>
+                                            <p className="text-white text-sm leading-relaxed break-words">{selectedImage.prompt}</p>
                                         )}
                                     </div>
                                 </div>
@@ -670,42 +748,104 @@ const GalleryPage: React.FC = () => {
                                         <span>收藏</span>
                                     </button>
 
-                                    <button
-                                        onClick={() => handleApplyToGenerator('standard', selectedImage)}
-                                        className="flex-1 py-2 rounded-xl bg-primary/20 text-primary border border-primary/30 flex flex-col items-center justify-center hover:bg-primary/30 transition-colors text-xs"
-                                        title="发送到常规模式（ComfyUI）"
-                                    >
-                                        <Send size={14} className="mb-0.5" />
-                                        <span>Standard</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleApplyToGenerator('novelai', selectedImage)}
-                                        className="flex-1 py-2 rounded-xl bg-[#ff9c9c]/20 text-[#ff9c9c] border border-[#ff9c9c]/30 flex flex-col items-center justify-center hover:bg-[#ff9c9c]/30 transition-colors text-xs"
-                                        title="发送到 NovelAI 模式"
-                                    >
-                                        <Sparkles size={14} className="mb-0.5" />
-                                        <span>NovelAI</span>
-                                    </button>
+                                    {/* 视频类型只显示发送到 I2V 按钮 */}
+                                    {selectedImage.source === 'video' ? (
+                                        <button
+                                            onClick={() => {
+                                                // 视频类型：从 metadata 获取首帧图片和动作描述
+                                                try {
+                                                    const meta = JSON.parse(selectedImage.metadata || '{}');
+                                                    const firstFrameUrl = meta.firstFrameUrl;
+                                                    const prompt = selectedImage.prompt || meta.positivePrompt || '';
 
-                                    {/* Duo 按钮 (当存在 duo 元数据时显示) */}
-                                    {(() => {
-                                        try {
-                                            const meta = JSON.parse(selectedImage.metadata || '{}');
-                                            if (meta.duo) {
-                                                return (
-                                                    <button
-                                                        onClick={() => handleApplyToGenerator('duo', selectedImage)}
-                                                        className="flex-1 py-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex flex-col items-center justify-center hover:bg-purple-500/30 transition-colors text-xs"
-                                                        title="发送到双人模式"
-                                                    >
-                                                        <User size={14} className="mb-0.5" />
-                                                        <span>双人模式</span>
-                                                    </button>
-                                                );
-                                            }
-                                        } catch (e) { }
-                                        return null;
-                                    })()}
+                                                    if (firstFrameUrl) {
+                                                        // 直接使用保存的首帧图片
+                                                        sessionStorage.setItem('video_init_image', firstFrameUrl);
+                                                        if (prompt) {
+                                                            sessionStorage.setItem('video_init_prompt', prompt);
+                                                        }
+                                                        navigate('/video');
+                                                    } else {
+                                                        // 没有首帧图片，尝试获取视频缩略图
+                                                        alert('该视频没有保存首帧图片');
+                                                    }
+                                                } catch (e) {
+                                                    console.error('Failed to parse video metadata:', e);
+                                                    alert('获取视频信息失败');
+                                                }
+                                            }}
+                                            className="flex-[3] py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex flex-col items-center justify-center hover:bg-cyan-500/30 transition-colors text-xs"
+                                            title="发送到视频模式（I2V）- 恢复首帧和动作描述"
+                                        >
+                                            <Video size={14} className="mb-0.5" />
+                                            <span>发送到 I2V</span>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => handleApplyToGenerator('standard', selectedImage)}
+                                                className="flex-1 py-2 rounded-xl bg-primary/20 text-primary border border-primary/30 flex flex-col items-center justify-center hover:bg-primary/30 transition-colors text-xs"
+                                                title="发送到常规模式（ComfyUI）"
+                                            >
+                                                <Send size={14} className="mb-0.5" />
+                                                <span>Standard</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleApplyToGenerator('novelai', selectedImage)}
+                                                className="flex-1 py-2 rounded-xl bg-[#ff9c9c]/20 text-[#ff9c9c] border border-[#ff9c9c]/30 flex flex-col items-center justify-center hover:bg-[#ff9c9c]/30 transition-colors text-xs"
+                                                title="发送到 NovelAI 模式"
+                                            >
+                                                <Sparkles size={14} className="mb-0.5" />
+                                                <span>NovelAI</span>
+                                            </button>
+
+                                            {/* 发送到视频 */}
+                                            <button
+                                                onClick={() => {
+                                                    // 获取图片并转为 base64
+                                                    fetch(selectedImage.imageUrl)
+                                                        .then(res => res.blob())
+                                                        .then(blob => {
+                                                            const reader = new FileReader();
+                                                            reader.onloadend = () => {
+                                                                sessionStorage.setItem('video_init_image', reader.result as string);
+                                                                navigate('/video');
+                                                            };
+                                                            reader.readAsDataURL(blob);
+                                                        })
+                                                        .catch(err => {
+                                                            console.error('Failed to fetch image:', err);
+                                                            alert('获取图片失败');
+                                                        });
+                                                }}
+                                                className="flex-1 py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex flex-col items-center justify-center hover:bg-cyan-500/30 transition-colors text-xs"
+                                                title="发送到视频模式（I2V）"
+                                            >
+                                                <Video size={14} className="mb-0.5" />
+                                                <span>视频</span>
+                                            </button>
+
+                                            {/* Duo 按钮 (当存在 duo 元数据时显示) */}
+                                            {(() => {
+                                                try {
+                                                    const meta = JSON.parse(selectedImage.metadata || '{}');
+                                                    if (meta.duo) {
+                                                        return (
+                                                            <button
+                                                                onClick={() => handleApplyToGenerator('duo', selectedImage)}
+                                                                className="flex-1 py-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex flex-col items-center justify-center hover:bg-purple-500/30 transition-colors text-xs"
+                                                                title="发送到双人模式"
+                                                            >
+                                                                <User size={14} className="mb-0.5" />
+                                                                <span>双人模式</span>
+                                                            </button>
+                                                        );
+                                                    }
+                                                } catch (e) { }
+                                                return null;
+                                            })()}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

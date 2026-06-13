@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, memo } from 'react';
 import { X } from 'lucide-react';
 
 interface Props {
@@ -7,9 +7,10 @@ interface Props {
   title: string;
   children: React.ReactNode;
   position?: 'left' | 'right';
+  headerAction?: React.ReactNode; // 可选的标题栏操作按钮
 }
 
-const MobileDrawer: React.FC<Props> = ({ isOpen, onClose, title, children, position = 'left' }) => {
+const MobileDrawer: React.FC<Props> = ({ isOpen, onClose, title, children, position = 'left', headerAction }) => {
   // Prevent body scroll when open
   useEffect(() => {
     if (isOpen) {
@@ -22,33 +23,38 @@ const MobileDrawer: React.FC<Props> = ({ isOpen, onClose, title, children, posit
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
+  // 使用 CSS 隐藏而非条件渲染，避免每次打开都重新创建DOM
   return (
-    <div className="fixed inset-0 z-[100] lg:hidden">
+    <div
+      className={`fixed inset-0 z-[100] lg:hidden transition-all duration-300 ${isOpen ? 'visible opacity-100' : 'invisible opacity-0 pointer-events-none'
+        }`}
+    >
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+      <div
+        className={`absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'
+          }`}
         onClick={onClose}
       ></div>
-      
+
       {/* Drawer */}
-      <div 
-        className={`absolute top-0 bottom-0 w-[85%] max-w-sm bg-surface border-white/5 shadow-2xl flex flex-col animate-in duration-300 ${
-          position === 'left' 
-            ? 'left-0 border-r slide-in-from-left' 
-            : 'right-0 border-l slide-in-from-right'
-        }`}
+      <div
+        className={`absolute top-0 bottom-0 w-[85%] max-w-sm bg-surface border-white/5 shadow-2xl flex flex-col transition-transform duration-300 ${position === 'left'
+          ? `left-0 border-r ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+          : `right-0 border-l ${isOpen ? 'translate-x-0' : 'translate-x-full'}`
+          }`}
       >
         {/* Header */}
         <div className="p-4 border-b border-white/5 flex items-center justify-between bg-darker/50">
           <h3 className="font-bold text-lg text-white">{title}</h3>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {headerAction}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -60,4 +66,4 @@ const MobileDrawer: React.FC<Props> = ({ isOpen, onClose, title, children, posit
   );
 };
 
-export default MobileDrawer;
+export default memo(MobileDrawer);

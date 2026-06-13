@@ -26,10 +26,11 @@ import AppNavigation from './components/Common/AppNavigation';
 import StyleManager from './components/Style/StyleManager';
 import {
     Wifi, WifiOff, Settings, History,
-    Sparkles, Download, User, LogOut, Users, Home, Clock
+    Sparkles, Download, User, LogOut, Users, Home, Clock, Trash2
 } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
+import { createTask, updateTaskStatus } from './services/taskService';
 
 const COMFY_URL = COMFY_API_URL_STANDARD;
 const getWsUrl = (url: string) => {
@@ -301,11 +302,41 @@ const DuoApp: React.FC = () => {
         localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
     }, [history]);
 
+    // 服务器离线时清理过期的 pending task，防止卡在"生成中"状态
+    useEffect(() => {
+        if (serverStatus === 'disconnected') {
+            const pendingTaskJson = localStorage.getItem(PENDING_TASK_KEY);
+            if (pendingTaskJson) {
+                try {
+                    const task = JSON.parse(pendingTaskJson);
+                    // 如果任务已经超过 5 分钟且服务器离线，清理任务让用户可以重新生成
+                    if (Date.now() - task.timestamp > 5 * 60 * 1000) {
+                        localStorage.removeItem(PENDING_TASK_KEY);
+                        setStatus(GenerationStatus.IDLE);
+                        setErrorMsg('连接丢失，请重新生成');
+                        if (pollingIntervalRef.current) {
+                            clearInterval(pollingIntervalRef.current);
+                            pollingIntervalRef.current = null;
+                        }
+                    }
+                } catch (e) {
+                    localStorage.removeItem(PENDING_TASK_KEY);
+                    setStatus(GenerationStatus.IDLE);
+                }
+            }
+        }
+    }, [serverStatus]);
+
     // Polling logic
     const startPolling = useCallback((promptId: string) => {
         if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
         }
+
+        let consecutiveErrors = 0;
+        let notFoundCount = 0;
+        const MAX_CONSECUTIVE_ERRORS = 30; // 约 60 秒后停止重试
+        const MAX_NOT_FOUND_COUNT = 60; // not_found 状态允许更多重试（约 120 秒）
 
         pollingIntervalRef.current = setInterval(async () => {
             try {
@@ -342,6 +373,11 @@ const DuoApp: React.FC = () => {
                     currentPromptIdRef.current = null;
                     saveToCloud(newImage);
                     localStorage.removeItem(PENDING_TASK_KEY);
+                    // 记录成功到后端
+                    updateTaskStatus(promptId, 'completed', newImage.url).catch(e => console.error(e));
+                    // 重置错误计数
+                    consecutiveErrors = 0;
+                    notFoundCount = 0;
                 } else if (result.status === 'failed') {
                     clearInterval(pollingIntervalRef.current);
                     pollingIntervalRef.current = null;
@@ -349,11 +385,39 @@ const DuoApp: React.FC = () => {
                     setErrorMsg('生成失败');
                     currentPromptIdRef.current = null;
                     localStorage.removeItem(PENDING_TASK_KEY);
+                    updateTaskStatus(promptId, 'failed', undefined, '生成失败').catch(console.error);
                 } else if (result.status === 'not_found') {
-                    console.warn('[Duo Polling] Status not found, retrying...');
+                    notFoundCount++;
+                    console.warn(`[Duo Polling] Status not found (${notFoundCount}/${MAX_NOT_FOUND_COUNT}), retrying...`);
+
+                    if (notFoundCount >= MAX_NOT_FOUND_COUNT) {
+                        // 任务可能已丢失（ComfyUI 重启）
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                        console.warn('[Duo Polling] Task not found after max retries, may be lost');
+                        localStorage.removeItem(PENDING_TASK_KEY);
+                        setStatus(GenerationStatus.IDLE);
+                        setErrorMsg('任务丢失，请重新生成');
+                        currentPromptIdRef.current = null;
+                        updateTaskStatus(promptId, 'failed', undefined, '任务丢失，请重新生成').catch(console.error);
+                    }
+                } else {
+                    // 其他状态（pending），重置错误计数
+                    consecutiveErrors = 0;
                 }
             } catch (err) {
-                console.error('Polling error:', err);
+                consecutiveErrors++;
+                console.error(`[Duo] Polling error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, err);
+
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
+                    localStorage.removeItem(PENDING_TASK_KEY);
+                    setStatus(GenerationStatus.ERROR);
+                    setErrorMsg('连接丢失，请检查网络后重新生成');
+                    currentPromptIdRef.current = null;
+                    updateTaskStatus(promptId, 'failed', undefined, '连接丢失').catch(console.error);
+                }
             }
         }, 2000);
     }, [settings]);
@@ -369,6 +433,9 @@ const DuoApp: React.FC = () => {
         try {
             const promptId = await queueDuoGeneration(settings);
             currentPromptIdRef.current = promptId;
+            
+            // 报告任务创建给后端
+            createTask(promptId, 'comfy_duo', settings).catch(console.error);
 
             // Save Pending Task (exclude large data like customMaskData to avoid quota issues)
             const { customMaskData, ...settingsForStorage } = settings;
@@ -619,10 +686,47 @@ const DuoApp: React.FC = () => {
         }
     }, [upscalingId, settings]);
 
-    // Delete from history
+    // Delete from history (legacy)
     const handleDeleteHistory = (index: number) => {
         setHistory(prev => prev.filter((_, i) => i !== index));
     };
+
+    // 清空历史记录
+    const handleClearHistory = useCallback(async () => {
+        setHistory([]);
+        setCurrentImage(null);
+        localStorage.removeItem('duo_history_v2');
+        // 清空云端历史
+        try {
+            const existingHistory = await fetch('/api/history?source=duo&limit=100', { credentials: 'include' });
+            if (existingHistory.ok) {
+                const data = await existingHistory.json();
+                for (const item of data.history || []) {
+                    await fetch(`/api/history/${item.id}`, { method: 'DELETE', credentials: 'include' });
+                }
+            }
+        } catch (e) {
+            console.warn('[Duo] Failed to clear cloud history:', e);
+        }
+    }, []);
+
+    // 删除单个历史项目
+    const handleDeleteHistoryItem = useCallback(async (img: GeneratedImage) => {
+        setHistory(prev => {
+            const updated = prev.filter(item => item.id !== img.id);
+            localStorage.setItem('duo_history_v2', JSON.stringify(updated));
+            return updated;
+        });
+        if (currentImage?.id === img.id) {
+            setCurrentImage(null);
+        }
+        // 删除云端记录
+        try {
+            await fetch(`/api/history/${img.id}`, { method: 'DELETE', credentials: 'include' });
+        } catch (e) {
+            console.warn('[Duo] Failed to delete from cloud:', e);
+        }
+    }, [currentImage]);
 
     const handleLogout = async () => {
         await logout();
@@ -745,11 +849,24 @@ const DuoApp: React.FC = () => {
 
                 {/* Right Column - History Gallery (Desktop) */}
                 <div className="hidden lg:flex flex-col fixed top-16 right-0 bottom-0 w-[320px] bg-surface/30 border-l border-white/5 z-20">
-                    <div className="p-4 border-b border-white/5">
+                    <div className="p-4 border-b border-white/5 flex items-center justify-between">
                         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                             <Clock size={16} />
                             历史记录
                         </h2>
+                        {history.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                        handleClearHistory();
+                                    }
+                                }}
+                                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                            >
+                                <Trash2 size={12} />
+                                清空
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex-1 overflow-hidden relative">
@@ -760,6 +877,12 @@ const DuoApp: React.FC = () => {
                             onUpscale={handleUpscale}
                             upscalingId={upscalingId}
                             onUploadToGallery={handleUploadToGallery}
+                            onSendToVideo={(img) => {
+                                sessionStorage.setItem('video_init_image', img.url);
+                                navigate('/video');
+                            }}
+                            onClearHistory={handleClearHistory}
+                            onDelete={handleDeleteHistoryItem}
                         />
                     </div>
                 </div>
@@ -824,6 +947,18 @@ const DuoApp: React.FC = () => {
                 onClose={() => setShowMobileHistory(false)}
                 title="历史记录"
                 position="right"
+                headerAction={history.length > 0 && (
+                    <button
+                        onClick={() => {
+                            if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                handleClearHistory();
+                            }
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                )}
             >
                 <div className="h-full">
                     <HistoryGallery
@@ -833,6 +968,12 @@ const DuoApp: React.FC = () => {
                         onUpscale={handleUpscale}
                         upscalingId={upscalingId}
                         onUploadToGallery={handleUploadToGallery}
+                        onSendToVideo={(img) => {
+                            sessionStorage.setItem('video_init_image', img.url);
+                            navigate('/video');
+                        }}
+                        onClearHistory={handleClearHistory}
+                        onDelete={handleDeleteHistoryItem}
                     />
                 </div>
             </MobileDrawer>

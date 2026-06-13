@@ -88,7 +88,7 @@ const NovelAISettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
                 {/* Resolution */}
                 <div>
                     <label className="text-xs text-gray-500 mb-1 block">
-                        分辨率 <span className="text-gray-600">(总像素 ≤ 1472×1472 = {(1472 * 1472).toLocaleString()})</span>
+                        分辨率 <span className="text-gray-600">(API上限 1536×2048)</span>
                     </label>
                     {/* Custom Input Row */}
                     <div className="grid grid-cols-2 gap-2 mb-2">
@@ -100,21 +100,12 @@ const NovelAISettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
                             value={settings.width}
                             onChange={(e) => {
                                 const val = e.target.value;
-                                // Allow empty or any number during typing
                                 handleChange('width', val === '' ? 0 : parseInt(val) || 0);
                             }}
                             onBlur={(e) => {
                                 let w = parseInt(e.target.value) || 256;
                                 w = Math.max(256, Math.min(2048, w));
-                                // Check total pixels
-                                const maxPixels = 1472 * 1472;
-                                if (w * settings.height > maxPixels) {
-                                    // Reduce height to fit
-                                    const newH = Math.floor(maxPixels / w);
-                                    onChange({ ...settings, width: w, height: Math.max(256, newH) });
-                                } else {
-                                    handleChange('width', w);
-                                }
+                                handleChange('width', w);
                             }}
                             className="bg-darker border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary"
                             placeholder="Width"
@@ -127,29 +118,21 @@ const NovelAISettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
                             value={settings.height}
                             onChange={(e) => {
                                 const val = e.target.value;
-                                // Allow empty or any number during typing
                                 handleChange('height', val === '' ? 0 : parseInt(val) || 0);
                             }}
                             onBlur={(e) => {
                                 let h = parseInt(e.target.value) || 256;
                                 h = Math.max(256, Math.min(2048, h));
-                                // Check total pixels
-                                const maxPixels = 1472 * 1472;
-                                if (settings.width * h > maxPixels) {
-                                    // Reduce width to fit
-                                    const newW = Math.floor(maxPixels / h);
-                                    onChange({ ...settings, width: Math.max(256, newW), height: h });
-                                } else {
-                                    handleChange('height', h);
-                                }
+                                handleChange('height', h);
                             }}
                             className="bg-darker border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary"
                             placeholder="Height"
                         />
                     </div>
                     {/* Pixel count indicator */}
-                    <div className={`text-[10px] mb-2 ${settings.width * settings.height > 1472 * 1472 ? 'text-red-400' : 'text-gray-500'}`}>
-                        当前像素: {(settings.width * settings.height).toLocaleString()} / {(1472 * 1472).toLocaleString()}
+                    <div className={`text-[10px] mb-2 ${(Math.min(settings.width, settings.height) > 1536 || Math.max(settings.width, settings.height) > 2048) ? 'text-red-400' : 'text-gray-500'}`}>
+                        当前: {settings.width}×{settings.height}
+                        {(Math.min(settings.width, settings.height) > 1536 || Math.max(settings.width, settings.height) > 2048) && ' ⚠️ 超出API限制'}
                     </div>
                     {/* Preset buttons */}
                     <div className="flex gap-1.5 flex-wrap">
@@ -157,6 +140,24 @@ const NovelAISettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
                             { label: '纵向', w: 832, h: 1216 },
                             { label: '横向', w: 1216, h: 832 },
                             { label: '方形', w: 1024, h: 1024 },
+                        ].map(p => (
+                            <button
+                                key={p.label}
+                                onClick={() => onChange({ ...settings, width: p.w, height: p.h })}
+                                className={`flex-1 text-xs px-2 py-1.5 rounded-lg border transition-all ${settings.width === p.w && settings.height === p.h
+                                    ? 'bg-primary/20 border-primary/50 text-white'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                    }`}
+                            >
+                                {p.label} <span className="opacity-60">{p.w}×{p.h}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap mt-1.5">
+                        {[
+                            { label: '纵向大', w: 1536, h: 2048 },
+                            { label: '横向大', w: 2048, h: 1536 },
+                            { label: '大方形', w: 1536, h: 1536 },
                         ].map(p => (
                             <button
                                 key={p.label}
@@ -205,16 +206,14 @@ const NovelAISettingsPanel: React.FC<Props> = ({ settings, onChange }) => {
 
                 {/* Steps */}
                 <div>
-                    <div className="flex justify-between items-center text-xs mb-1">
+                    <div className="flex justify-between text-xs mb-1">
                         <span className="text-gray-500">生成步数 (Steps)</span>
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-primary font-bold">28</span>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded">已锁定</span>
-                        </div>
+                        <span className="text-primary font-mono">{settings.steps}</span>
                     </div>
-                    <div className="w-full h-1.5 bg-primary/20 rounded-full relative overflow-hidden">
-                        <div className="absolute inset-0 bg-primary w-[56%] opacity-50"></div>
-                    </div>
+                    <input type="range" min="1" max="50" step="1" value={settings.steps}
+                        onChange={(e) => handleChange('steps', parseInt(e.target.value))}
+                        className="w-full accent-primary h-1.5 bg-darker rounded-full appearance-none cursor-pointer"
+                    />
                 </div>
 
                 {/* CFG Scale */}

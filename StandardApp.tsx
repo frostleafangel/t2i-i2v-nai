@@ -27,10 +27,11 @@ import AppNavigation from './components/Common/AppNavigation';
 import StyleManager from './components/Style/StyleManager';
 import {
     Wifi, WifiOff, Settings, History,
-    Sparkles, Zap, Download, ImageIcon, Maximize2, Image as GalleryIcon, User, LogOut
+    Sparkles, Zap, Download, ImageIcon, Maximize2, Image as GalleryIcon, User, LogOut, Trash2
 } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
+import { createTask, updateTaskStatus } from './services/taskService';
 
 const COMFY_URL = COMFY_API_URL_STANDARD;
 const getWsUrl = (url: string) => {
@@ -114,6 +115,7 @@ const StandardApp: React.FC = () => {
     const currentPromptIdRef = useRef<string | null>(null);
     const upscalePromptIdRef = useRef<string | null>(null); // 放大任务的 prompt_id
     const pollingIntervalRef = useRef<any>(null);
+    const queueWaitTimeRef = useRef<number>(0);
 
     // Persistence Keys
     const SETTINGS_KEY = 'standard_settings_v1';
@@ -260,6 +262,27 @@ const StandardApp: React.FC = () => {
         initHistory();
     }, [loadCloudHistory, syncLocalToCloud]);
 
+    // 服务器离线时清理过期的 pending task，防止卡在"生成中"状态
+    useEffect(() => {
+        if (serverStatus === 'disconnected') {
+            const pendingTaskJson = localStorage.getItem(PENDING_TASK_KEY);
+            if (pendingTaskJson) {
+                try {
+                    const task = JSON.parse(pendingTaskJson);
+                    // 如果任务已经超过 5 分钟且服务器离线，清理任务让用户可以重新生成
+                    if (Date.now() - task.timestamp > 5 * 60 * 1000) {
+                        localStorage.removeItem(PENDING_TASK_KEY);
+                        setStatus(GenerationStatus.IDLE);
+                        setErrorMsg('连接丢失，请重新生成');
+                    }
+                } catch (e) {
+                    localStorage.removeItem(PENDING_TASK_KEY);
+                    setStatus(GenerationStatus.IDLE);
+                }
+            }
+        }
+    }, [serverStatus]);
+
     // Save settings on change (only after initial load to prevent overwriting)
     useEffect(() => {
         if (settingsLoaded) {
@@ -340,6 +363,38 @@ const StandardApp: React.FC = () => {
         }
     }, [settings]);
 
+    // 清空历史记录
+    const handleClearHistory = useCallback(async () => {
+        setHistory([]);
+        setCurrentImage(null);
+        // 清空云端历史
+        try {
+            const existingHistory = await fetch('/api/history?source=comfyui&limit=100', { credentials: 'include' });
+            if (existingHistory.ok) {
+                const data = await existingHistory.json();
+                for (const item of data.history || []) {
+                    await fetch(`/api/history/${item.id}`, { method: 'DELETE', credentials: 'include' });
+                }
+            }
+        } catch (e) {
+            console.warn('[Standard] Failed to clear cloud history:', e);
+        }
+    }, []);
+
+    // 删除单个历史项目
+    const handleDeleteHistoryItem = useCallback(async (img: GeneratedImage) => {
+        setHistory(prev => prev.filter(item => item.id !== img.id));
+        if (currentImage?.id === img.id) {
+            setCurrentImage(null);
+        }
+        // 删除云端记录
+        try {
+            await fetch(`/api/history/${img.id}`, { method: 'DELETE', credentials: 'include' });
+        } catch (e) {
+            console.warn('[Standard] Failed to delete from cloud:', e);
+        }
+    }, [currentImage]);
+
     // 退出登录
     const handleLogout = async () => {
         await logout();
@@ -348,11 +403,18 @@ const StandardApp: React.FC = () => {
 
     // Polling Function
     const startPolling = useCallback(async (promptId: string, generationSettings: StandardGenerationSettings) => {
+        let consecutiveErrors = 0;
+        let notFoundCount = 0;
+        const MAX_CONSECUTIVE_ERRORS = 30; // 约 60 秒后停止重试
+        const MAX_NOT_FOUND_COUNT = 60; // not_found 状态允许更多重试（约 60 秒）
+
         const poll = async () => {
             try {
                 const res = await checkStandardGenerationStatus(promptId);
 
                 if (res.status === 'completed' && res.imageUrl) {
+                    consecutiveErrors = 0; // 重置错误计数
+                    notFoundCount = 0; // 重置 not_found 计数
                     const newImage: GeneratedImage = {
                         id: promptId,
                         url: res.imageUrl,
@@ -380,22 +442,69 @@ const StandardApp: React.FC = () => {
                     // Clear pending task
                     localStorage.removeItem(PENDING_TASK_KEY);
 
+                    updateTaskStatus(
+                        promptId, 
+                        'completed', 
+                        newImage.url, 
+                        undefined, 
+                        queueWaitTimeRef.current > 0 ? queueWaitTimeRef.current : undefined
+                    ).catch(console.error);
+
                     setTimeout(() => setStatus(GenerationStatus.IDLE), 2000);
                     return;
 
                 } else if (res.status === 'error') {
-                    // Don't clear pending task immediately on connection error, allow retries
-                    console.warn("Connection error to server, retrying...");
-                    // Optional: set a temporary error state in UI but keep polling?
-                    // For now, just retry silently to match Newbie behavior
+                    consecutiveErrors++;
+                    console.warn(`Connection error to server (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}), retrying...`);
+
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                        // 连续错误过多，停止轮询
+                        console.error('Too many consecutive errors, stopping polling');
+                        localStorage.removeItem(PENDING_TASK_KEY);
+                        setStatus(GenerationStatus.ERROR);
+                        setErrorMsg('连接丢失，请检查网络后重新生成');
+                        updateTaskStatus(promptId, 'failed', undefined, '连接丢失').catch(console.error);
+                        return;
+                    }
+
                     pollingIntervalRef.current = setTimeout(poll, 2000); // Retry slower
+                    return;
+                } else if (res.status === 'not_found') {
+                    // 任务可能还没进入历史记录，或者真的丢失了
+                    notFoundCount++;
+
+                    if (notFoundCount >= MAX_NOT_FOUND_COUNT) {
+                        // 连续多次 not_found，可能是 ComfyUI 重启导致任务丢失
+                        console.warn('Task not found after max retries, ComfyUI may have restarted');
+                        localStorage.removeItem(PENDING_TASK_KEY);
+                        setStatus(GenerationStatus.IDLE);
+                        setErrorMsg('任务丢失，请重新生成');
+                        updateTaskStatus(promptId, 'failed', undefined, '任务丢失').catch(console.error);
+                        return;
+                    }
+
+                    // 继续轮询，等待任务出现在历史记录中
+                    pollingIntervalRef.current = setTimeout(poll, 1000);
                     return;
                 }
 
+                // 成功获取状态，重置错误计数
+                consecutiveErrors = 0;
                 // Continue polling
                 pollingIntervalRef.current = setTimeout(poll, 1000);
             } catch (e) {
-                console.error("Polling error", e);
+                consecutiveErrors++;
+                console.error(`Polling error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e);
+
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    // 连续错误过多，停止轮询
+                    localStorage.removeItem(PENDING_TASK_KEY);
+                    setStatus(GenerationStatus.ERROR);
+                    setErrorMsg('连接丢失，请检查网络后重新生成');
+                    updateTaskStatus(promptId, 'failed', undefined, '连接丢失').catch(console.error);
+                    return;
+                }
+
                 // Retry on exception
                 pollingIntervalRef.current = setTimeout(poll, 2000);
             }
@@ -470,6 +579,23 @@ const StandardApp: React.FC = () => {
                 ws.onmessage = (event) => {
                     try {
                         const message = JSON.parse(event.data);
+                        
+                        // 记录首个事件触发时的排队耗时
+                        if (message.type === 'progress' || message.type === 'execution_start' || message.type === 'executing') {
+                            const messagePromptId = message.data?.prompt_id;
+                            if (messagePromptId && currentPromptIdRef.current && messagePromptId === currentPromptIdRef.current) {
+                                if (queueWaitTimeRef.current === 0) {
+                                    const taskJson = localStorage.getItem(PENDING_TASK_KEY);
+                                    if (taskJson) {
+                                        try {
+                                            const task = JSON.parse(taskJson);
+                                            queueWaitTimeRef.current = Date.now() - task.timestamp;
+                                        } catch (e) {}
+                                    }
+                                }
+                            }
+                        }
+
                         if (message.type === 'progress') {
                             // 只有当进度消息的 prompt_id 与当前任务匹配时才更新进度
                             // 否则其他用户的任务进度会显示在当前用户界面上
@@ -531,11 +657,15 @@ const StandardApp: React.FC = () => {
         setStatus(GenerationStatus.PREPARING);
         setProgress(0);
         setErrorMsg(null);
+        queueWaitTimeRef.current = 0;
 
         try {
             const promptId = await queueStandardGeneration(settings);
             currentPromptIdRef.current = promptId;
             setStatus(GenerationStatus.QUEUED);
+
+            // Report to backend
+            createTask(promptId, 'comfy_standard', settings).catch(console.error);
 
             // Save Pending Task
             localStorage.setItem(PENDING_TASK_KEY, JSON.stringify({
@@ -745,6 +875,18 @@ const StandardApp: React.FC = () => {
                 onClose={() => setShowMobileHistory(false)}
                 title={t.standardMode.history}
                 position="right"
+                headerAction={history.length > 0 && (
+                    <button
+                        onClick={() => {
+                            if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                handleClearHistory();
+                            }
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-500/10 transition-colors"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                )}
             >
                 <HistoryGallery
                     history={history}
@@ -756,6 +898,12 @@ const StandardApp: React.FC = () => {
                     onUpscale={handleUpscale}
                     upscalingId={upscalingId}
                     onUploadToGallery={handleUploadToGallery}
+                    onSendToVideo={(img) => {
+                        sessionStorage.setItem('video_init_image', img.url);
+                        navigate('/video');
+                    }}
+                    onClearHistory={handleClearHistory}
+                    onDelete={handleDeleteHistoryItem}
                 />
             </MobileDrawer>
 
@@ -869,8 +1017,21 @@ const StandardApp: React.FC = () => {
 
                 {/* Right Column: History */}
                 <div className="w-48 flex flex-col bg-surface/30 rounded-2xl border border-white/5 overflow-hidden">
-                    <div className="p-3 border-b border-white/5 shrink-0">
+                    <div className="p-3 border-b border-white/5 shrink-0 flex items-center justify-between">
                         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t.standardMode.history}</h3>
+                        {history.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+                                        handleClearHistory();
+                                    }
+                                }}
+                                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 py-0.5 px-1.5 rounded hover:bg-red-500/10 transition-colors"
+                                title="清空历史记录"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        )}
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <HistoryGallery
@@ -880,6 +1041,12 @@ const StandardApp: React.FC = () => {
                             onUpscale={handleUpscale}
                             upscalingId={upscalingId}
                             onUploadToGallery={handleUploadToGallery}
+                            onSendToVideo={(img) => {
+                                sessionStorage.setItem('video_init_image', img.url);
+                                navigate('/video');
+                            }}
+                            onClearHistory={handleClearHistory}
+                            onDelete={handleDeleteHistoryItem}
                         />
                     </div>
                 </div>
